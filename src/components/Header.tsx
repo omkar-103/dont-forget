@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { formatHeaderDate, getTodayLocal } from '../utils/date';
-import { Search, Plus, Settings, Calendar, RotateCcw, Sun, Moon, Lock } from 'lucide-react';
+import { Search, Plus, Settings, Calendar, RotateCcw, Sun, Moon, Lock, Sparkles } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const {
@@ -15,15 +15,16 @@ export const Header: React.FC = () => {
     isDarkMode,
     toggleTheme,
     theme,
+    isOrangePink,
   } = useApp();
 
   const { lock } = useAuth();
 
   const realToday = getTodayLocal();
-  const isSimulatedOrDifferent = activeDate !== realToday && activeDate !== '2026-10-09';
+  const isSimulatedOrDifferent = activeDate !== realToday;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors animate-slide-down">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
         {/* Zone 1: Brand title */}
         <div className="flex items-center gap-3">
@@ -37,7 +38,7 @@ export const Header: React.FC = () => {
           </button>
         </div>
 
-        {/* Zone 2: Date display (Clean unboxed text) */}
+        {/* Zone 2: Date display */}
         <div className="hidden md:flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400">
           <Calendar className="w-3.5 h-3.5 text-slate-400" />
           <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
@@ -67,29 +68,38 @@ export const Header: React.FC = () => {
             <Search className="w-4 h-4" />
           </button>
 
-          {/* Light / Dark Mode Toggle */}
+          {/* Theme Toggle Button */}
           <button
             type="button"
             onClick={toggleTheme}
-            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={isOrangePink ? 'Exit Orange Pink mode' : isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             title={
-              theme === 'system'
+              isOrangePink
+                ? 'Orange Pink Mode — Click to exit'
+                : theme === 'system'
                 ? `System Mode (${isDarkMode ? 'Dark' : 'Light'}) - Click to toggle`
                 : isDarkMode
                 ? 'Switch to light mode'
                 : 'Switch to dark mode'
             }
-            className="min-h-[40px] min-w-[40px] p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-slate-900 dark:focus-visible:ring-white relative"
+            className="min-h-[40px] min-w-[40px] p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer relative"
           >
-            {isDarkMode ? (
-              <Sun className="w-4 h-4 text-amber-500 hover:text-amber-400 transition-transform active:rotate-45" />
+            {isOrangePink ? (
+              <Sparkles className="w-4 h-4" style={{ color: '#FF8A3D' }} />
+            ) : isDarkMode ? (
+              <Sun className="w-4 h-4 text-amber-500 transition-transform active:rotate-45" />
             ) : (
-              <Moon className="w-4 h-4 text-slate-700 hover:text-indigo-600 transition-transform active:-rotate-12" />
+              <Moon className="w-4 h-4 text-slate-700 transition-transform active:-rotate-12" />
             )}
-            {theme === 'system' && (
+            {/* Indicator dot */}
+            {theme === 'system' && !isOrangePink && (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500" title="System theme active" />
+            )}
+            {isOrangePink && (
               <span
-                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500"
-                title="System theme active"
+                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+                style={{ background: 'linear-gradient(135deg, #FF8A3D, #F43F7A)' }}
+                title="Orange Pink theme active"
               />
             )}
           </button>

@@ -4,16 +4,17 @@ import { getTodayLocal } from './date';
 export const STORAGE_KEY = 'dont_forget_v2_data';
 
 export const DEFAULT_COLLEGE_ITEMS = [
-  'Laptop',
-  'Laptop Charger',
-  'College ID',
-  'Wallet',
-  'Phone',
+  'iw wi College ID',
+  'Chalo Bus Card',
+  'Money',
+  'Subject Books',
+  'Pen',
+  'Bottles ×2',
+  'Tiffin',
   'Earphones',
-  'Water Bottle',
-  'Notebook',
-  'Pens',
-  'Keys',
+  'Napkin',
+  'Perfume',
+  'Clock',
 ];
 
 export const DEFAULT_EVENT_ITEMS = [
@@ -345,7 +346,7 @@ export function validateImportedJson(jsonObj: unknown): {
     settings: {
       schemaVersion: 2,
       theme: obj.settings?.theme || 'system',
-      baselineDate: obj.settings?.baselineDate || '2026-10-09',
+      baselineDate: obj.settings?.baselineDate || getTodayLocal(),
       lastActiveDate: getTodayLocal(),
     },
   };

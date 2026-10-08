@@ -65,13 +65,13 @@ const MainContent: React.FC = () => {
 
       {/* Main Container */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-5 sm:pt-7">
-        {currentTab === 'today' && <TodayView />}
-        {currentTab === 'tasks' && <TasksView />}
-        {currentTab === 'assignments' && <AssignmentsView />}
-        {currentTab === 'events' && <EventsView />}
-        {currentTab === 'calendar' && <CalendarView />}
-        {currentTab === 'checklists' && <ChecklistsView />}
-        {currentTab === 'attendance' && <AttendanceView />}
+        {currentTab === 'today' && <div className="tab-content-enter"><TodayView /></div>}
+        {currentTab === 'tasks' && <div className="tab-content-enter"><TasksView /></div>}
+        {currentTab === 'assignments' && <div className="tab-content-enter"><AssignmentsView /></div>}
+        {currentTab === 'events' && <div className="tab-content-enter"><EventsView /></div>}
+        {currentTab === 'calendar' && <div className="tab-content-enter"><CalendarView /></div>}
+        {currentTab === 'checklists' && <div className="tab-content-enter"><ChecklistsView /></div>}
+        {currentTab === 'attendance' && <div className="tab-content-enter"><AttendanceView /></div>}
       </main>
 
       {/* Global Interactive Modals */}

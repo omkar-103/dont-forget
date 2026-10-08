@@ -42,13 +42,13 @@ export const Navigation: React.FC = () => {
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${
                   isActive
                     ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-inherit' : 'text-slate-400'}`} />
+                <Icon className={`w-3.5 h-3.5 transition-transform duration-200 ${isActive ? 'text-inherit scale-110' : 'text-slate-400'}`} />
                 <span>{item.label}</span>
               </button>
             );
@@ -66,22 +66,22 @@ export const Navigation: React.FC = () => {
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`flex flex-col items-center justify-center min-h-[44px] py-1 transition-colors cursor-pointer ${
+                className={`flex flex-col items-center justify-center min-h-[44px] py-1 transition-all duration-200 cursor-pointer active:scale-90 ${
                   isActive
                     ? 'text-slate-900 dark:text-white font-semibold'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 <Icon
-                  className={`w-4.5 h-4.5 transition-transform ${
-                    isActive ? 'scale-110 text-slate-900 dark:text-white' : 'text-slate-400'
+                  className={`w-4.5 h-4.5 transition-all duration-200 ${
+                    isActive ? 'scale-115 text-slate-900 dark:text-white' : 'text-slate-400'
                   }`}
                 />
                 <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[52px]">
                   {item.label}
                 </span>
                 {isActive && (
-                  <span className="w-1 h-1 bg-slate-900 dark:bg-white rounded-full mt-0.5" />
+                  <span className="w-1 h-1 bg-slate-900 dark:bg-white rounded-full mt-0.5 animate-scale-in" />
                 )}
               </button>
             );

@@ -70,9 +70,10 @@ interface AppContextValue {
   restoreDefaultChecklists: () => void;
 
   // Settings & Theme
-  theme: 'system' | 'light' | 'dark';
+  theme: 'system' | 'light' | 'dark' | 'orange-pink';
   isDarkMode: boolean;
-  setTheme: (theme: 'system' | 'light' | 'dark') => void;
+  isOrangePink: boolean;
+  setTheme: (theme: 'system' | 'light' | 'dark' | 'orange-pink') => void;
   toggleTheme: () => void;
   exportBackup: () => void;
   importBackup: (newData: AppData) => void;
@@ -141,13 +142,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [data]);
 
   // Handle theme changes
-  const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>(() => data.settings?.theme || 'system');
-  
+  const [theme, setThemeState] = useState<'system' | 'light' | 'dark' | 'orange-pink'>(
+    () => (data.settings?.theme as 'system' | 'light' | 'dark' | 'orange-pink') || 'system'
+  );
+
+  const isOrangePink = theme === 'orange-pink';
+
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const initialTheme = data.settings?.theme || 'system';
     if (initialTheme === 'dark') return true;
-    if (initialTheme === 'light') return false;
+    if (initialTheme === 'light' || initialTheme === 'orange-pink') return false;
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
@@ -157,31 +162,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const media = window.matchMedia('(prefers-color-scheme: dark)');
 
     const applyTheme = () => {
-      const dark = theme === 'dark' || (theme === 'system' && media.matches);
-      setIsDarkMode(dark);
-      if (dark) {
-        root.classList.add('dark');
-        body.classList.add('dark');
-        root.setAttribute('data-theme', 'dark');
-        root.style.colorScheme = 'dark';
-      } else {
+      if (theme === 'orange-pink') {
+        const prefDark = media.matches;
         root.classList.remove('dark');
         body.classList.remove('dark');
-        root.setAttribute('data-theme', 'light');
-        root.style.colorScheme = 'light';
+        root.setAttribute('data-theme', prefDark ? 'orange-pink-dark' : 'orange-pink');
+        root.style.colorScheme = prefDark ? 'dark' : 'light';
+        setIsDarkMode(false);
+      } else {
+        const dark = theme === 'dark' || (theme === 'system' && media.matches);
+        setIsDarkMode(dark);
+        if (dark) {
+          root.classList.add('dark');
+          body.classList.add('dark');
+          root.setAttribute('data-theme', 'dark');
+          root.style.colorScheme = 'dark';
+        } else {
+          root.classList.remove('dark');
+          body.classList.remove('dark');
+          root.setAttribute('data-theme', 'light');
+          root.style.colorScheme = 'light';
+        }
       }
     };
 
     applyTheme();
 
     const listener = () => {
-      if (theme === 'system') applyTheme();
+      if (theme === 'system' || theme === 'orange-pink') applyTheme();
     };
     media.addEventListener('change', listener);
     return () => media.removeEventListener('change', listener);
   }, [theme]);
 
-  const setTheme = useCallback((newTheme: 'system' | 'light' | 'dark') => {
+  const setTheme = useCallback((newTheme: 'system' | 'light' | 'dark' | 'orange-pink') => {
     setThemeState(newTheme);
     setData((prev) => ({
       ...prev,
@@ -193,9 +207,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const toggleTheme = useCallback(() => {
+    if (theme === 'orange-pink') {
+      // Exit orange-pink to system default
+      setTheme('system');
+      return;
+    }
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const currentlyDark = theme === 'dark' || (theme === 'system' && media.matches);
-    const nextTheme: 'system' | 'light' | 'dark' = currentlyDark ? 'light' : 'dark';
+    const nextTheme: 'light' | 'dark' = currentlyDark ? 'light' : 'dark';
     setTheme(nextTheme);
   }, [theme, setTheme]);
 
@@ -205,8 +224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetActiveDateToToday = useCallback(() => {
     const today = getTodayLocal();
-    const base = today < '2026-10-09' ? '2026-10-09' : today;
-    setActiveDateState(base);
+    setActiveDateState(today);
   }, []);
 
   const openQuickAdd = useCallback((type: 'task' | 'assignment' | 'event' | 'checklist' = 'task') => {
@@ -581,8 +599,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearAllData = useCallback(() => {
     const today = getTodayLocal();
-    const baseline = today < '2026-10-09' ? '2026-10-09' : today;
-    const fresh = generateInitialSeedData(baseline);
+    const fresh = generateInitialSeedData(today);
     fresh.tasks = [];
     fresh.assignments = [];
     fresh.events = [];
@@ -633,6 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreDefaultChecklists,
       theme,
       isDarkMode,
+      isOrangePink,
       setTheme,
       toggleTheme,
       exportBackup,
@@ -676,6 +694,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreDefaultChecklists,
       theme,
       isDarkMode,
+      isOrangePink,
       setTheme,
       toggleTheme,
       exportBackup,

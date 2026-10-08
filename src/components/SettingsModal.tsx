@@ -17,6 +17,7 @@ import {
   KeyRound,
   Check,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { getTodayLocal } from '../utils/date';
 import { validateImportedJson, exportDataAsJson } from '../utils/storage';
@@ -28,6 +29,7 @@ export const SettingsModal: React.FC = () => {
     theme,
     setTheme,
     isDarkMode,
+    isOrangePink,
     resetTodayChecklist,
     restoreDefaultChecklists,
     importBackup,
@@ -161,53 +163,84 @@ export const SettingsModal: React.FC = () => {
         <div className="p-5 overflow-y-auto space-y-6 text-slate-800 dark:text-slate-200">
           {/* THEME SELECTOR */}
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
               Appearance
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              {/* Light */}
               <button
                 type="button"
                 onClick={() => setTheme('light')}
-                className={`min-h-[44px] p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                className={`min-h-[52px] p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
                   theme === 'light'
-                    ? 'border-indigo-600 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-2 ring-indigo-500/20'
+                    ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-950/40 font-semibold ring-2 ring-indigo-500/20'
                     : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
-                <Sun className={`w-4 h-4 ${theme === 'light' ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
-                <span className="text-xs">Light</span>
+                <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center shadow-xs flex-shrink-0">
+                  <Sun className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                </div>
+                <span className={`text-xs ${theme === 'light' ? 'text-indigo-900 dark:text-indigo-200' : ''}`}>Light</span>
               </button>
+
+              {/* Dark */}
               <button
                 type="button"
                 onClick={() => setTheme('dark')}
-                className={`min-h-[44px] p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                className={`min-h-[52px] p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
                   theme === 'dark'
-                    ? 'border-indigo-600 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-2 ring-indigo-500/20'
+                    ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-950/40 font-semibold ring-2 ring-indigo-500/20'
                     : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
-                <Moon className={`w-4 h-4 ${theme === 'dark' ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
-                <span className="text-xs">Dark</span>
+                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center shadow-xs flex-shrink-0">
+                  <Moon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-indigo-400' : 'text-slate-300'}`} />
+                </div>
+                <span className={`text-xs ${theme === 'dark' ? 'text-indigo-900 dark:text-indigo-200' : ''}`}>Dark</span>
               </button>
+
+              {/* System */}
               <button
                 type="button"
                 onClick={() => setTheme('system')}
-                className={`min-h-[44px] p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                className={`min-h-[52px] p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
                   theme === 'system'
-                    ? 'border-indigo-600 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-2 ring-indigo-500/20'
+                    ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-950/40 font-semibold ring-2 ring-indigo-500/20'
                     : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
-                <Laptop className={`w-4 h-4 ${theme === 'system' ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
-                <span className="text-xs">System</span>
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-slate-100 to-slate-800 flex items-center justify-center shadow-xs flex-shrink-0">
+                  <Laptop className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className={`text-xs ${theme === 'system' ? 'text-indigo-900 dark:text-indigo-200' : ''}`}>System</span>
+              </button>
+
+              {/* Orange Pink ✨ */}
+              <button
+                type="button"
+                onClick={() => setTheme('orange-pink')}
+                className={`min-h-[52px] p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
+                  isOrangePink
+                    ? 'border-orange-400 bg-orange-50/70 font-semibold ring-2 ring-orange-400/20'
+                    : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-orange-200 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-xs flex-shrink-0 overflow-hidden" style={{ background: 'linear-gradient(135deg, #FF8A3D, #FF6B6B, #F43F7A)' }}>
+                  <Sparkles className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className={`text-xs ${isOrangePink ? 'text-orange-800' : ''}`}>Orange Pink</span>
               </button>
             </div>
+
             <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-2 px-1">
               <span>
-                Active: <strong className="font-semibold capitalize text-slate-700 dark:text-slate-300">{isDarkMode ? 'Dark' : 'Light'} Mode</strong>
+                Active:{' '}
+                <strong className="font-semibold capitalize text-slate-700 dark:text-slate-300">
+                  {isOrangePink ? '🌸 Orange Pink' : isDarkMode ? 'Dark' : 'Light'} Mode
+                </strong>
               </span>
               <span>
-                {theme === 'system' ? '(Following OS preference)' : '(Manual preference saved)'}
+                {theme === 'system' ? '(Following OS)' : '(Manual)'}
               </span>
             </div>
           </div>

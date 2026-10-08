@@ -180,7 +180,7 @@ export const TodayView: React.FC = () => {
   );
 
   return (
-    <div className="space-y-7 pb-20 md:pb-8">
+    <div className="space-y-7 pb-20 md:pb-8 stagger-children">
       {/* 1. Daily Header */}
       <div>
         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -192,7 +192,7 @@ export const TodayView: React.FC = () => {
       </div>
 
       {/* 2. Daily Progress Summary Card */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="animate-fade-up p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover-lift">
         <div className="flex items-center justify-between mb-2">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -227,7 +227,7 @@ export const TodayView: React.FC = () => {
       </div>
 
       {/* 3. BEFORE YOU LEAVE (Version 1 Identity in Command Center) */}
-      <div className="p-4 sm:p-5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs">
+      <div className="animate-fade-up p-4 sm:p-5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs hover-lift">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">

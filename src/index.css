@@ -2,19 +2,534 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ============================================================
+   ORANGE PINK THEME — CSS CUSTOM PROPERTIES
+   ============================================================ */
+
+/* Light variant */
+:root[data-theme="orange-pink"] {
+  --op-bg:              #FFF7F2;
+  --op-bg-alt:          #FFF0E8;
+  --op-surface:         #FFFCFA;
+  --op-surface-alt:     #FFF5EE;
+  --op-border:          #F5D6C8;
+  --op-border-alt:      #F4CCD8;
+  --op-text:            #241A1D;
+  --op-text-2:          #6F5A60;
+  --op-text-3:          #9A858B;
+  --op-orange:          #FF8A3D;
+  --op-coral:           #FF6B6B;
+  --op-pink:            #F43F7A;
+  --op-pink-hot:        #EC4899;
+  --op-gradient:        linear-gradient(135deg, #FF8A3D 0%, #FF6B6B 50%, #F43F7A 100%);
+  --op-gradient-hover:  linear-gradient(135deg, #FF9A55 0%, #FF7D7D 50%, #F5508A 100%);
+  --op-shadow:          0 2px 12px 0 rgb(244 63 122 / 0.10), 0 1px 3px 0 rgb(255 138 61 / 0.08);
+  --op-shadow-lg:       0 8px 32px -4px rgb(244 63 122 / 0.15), 0 2px 8px -2px rgb(255 107 107 / 0.10);
+}
+
+/* Dark variant */
+:root[data-theme="orange-pink-dark"] {
+  --op-bg:              #171214;
+  --op-bg-alt:          #21191B;
+  --op-surface:         #261E20;
+  --op-surface-alt:     #2D2226;
+  --op-border:          #3D2E33;
+  --op-border-alt:      #4A3040;
+  --op-text:            #F9EEF2;
+  --op-text-2:          #C8A8B5;
+  --op-text-3:          #8A6A76;
+  --op-orange:          #FF8A5B;
+  --op-coral:           #FF7070;
+  --op-pink:            #F45B88;
+  --op-pink-hot:        #E86BA0;
+  --op-gradient:        linear-gradient(135deg, #FF8A5B 0%, #FF7070 50%, #F45B88 100%);
+  --op-gradient-hover:  linear-gradient(135deg, #FF9A6B 0%, #FF8080 50%, #F56898 100%);
+  --op-shadow:          0 2px 12px 0 rgb(244 91 136 / 0.20), 0 1px 3px 0 rgb(255 138 91 / 0.12);
+  --op-shadow-lg:       0 8px 32px -4px rgb(244 91 136 / 0.25), 0 2px 8px -2px rgb(255 112 112 / 0.15);
+}
+
+/* ============================================================
+   ORANGE PINK — STRUCTURAL OVERRIDES
+   ============================================================ */
+
+/* Smooth transition for all theme-driven properties */
+:root[data-theme^="orange-pink"] *,
+:root[data-theme^="orange-pink"] *::before,
+:root[data-theme^="orange-pink"] *::after {
+  transition-property: background-color, border-color, color, box-shadow, fill, stroke;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+/* --- Body / Page Background --- */
+:root[data-theme^="orange-pink"] body {
+  background-color: var(--op-bg);
+  color: var(--op-text);
+}
+
+:root[data-theme^="orange-pink"] .min-h-screen {
+  background-color: var(--op-bg) !important;
+  background-image: radial-gradient(ellipse 80% 50% at 10% -10%, rgb(255 138 61 / 0.07) 0%, transparent 60%),
+                    radial-gradient(ellipse 60% 40% at 90% 100%, rgb(244 63 122 / 0.06) 0%, transparent 60%);
+}
+
+/* --- Header --- */
+:root[data-theme^="orange-pink"] header.sticky {
+  background-color: rgb(255 247 242 / 0.96) !important;
+  border-bottom-color: var(--op-border) !important;
+  box-shadow: 0 1px 0 0 var(--op-border), 0 2px 8px -2px rgb(255 138 61 / 0.08);
+}
+:root[data-theme="orange-pink-dark"] header.sticky {
+  background-color: rgb(23 18 20 / 0.97) !important;
+  border-bottom-color: var(--op-border) !important;
+}
+
+/* Header title gradient */
+:root[data-theme^="orange-pink"] header .text-slate-900,
+:root[data-theme^="orange-pink"] header .dark\:text-white {
+  background: var(--op-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Header icon buttons */
+:root[data-theme^="orange-pink"] header button.text-slate-600,
+:root[data-theme^="orange-pink"] header button.dark\:text-slate-400 {
+  color: var(--op-text-2) !important;
+}
+:root[data-theme^="orange-pink"] header button.text-slate-600:hover,
+:root[data-theme^="orange-pink"] header button.dark\:text-slate-400:hover {
+  color: var(--op-text) !important;
+  background-color: var(--op-bg-alt) !important;
+}
+
+/* Header Add button → gradient */
+:root[data-theme^="orange-pink"] header button.bg-slate-900,
+:root[data-theme^="orange-pink"] header button.dark\:bg-white {
+  background: var(--op-gradient) !important;
+  color: #fff !important;
+  border: none;
+  box-shadow: var(--op-shadow);
+}
+:root[data-theme^="orange-pink"] header button.bg-slate-900:hover,
+:root[data-theme^="orange-pink"] header button.dark\:bg-white:hover {
+  background: var(--op-gradient-hover) !important;
+  box-shadow: var(--op-shadow-lg);
+  transform: translateY(-1px);
+}
+
+/* --- Navigation --- */
+:root[data-theme^="orange-pink"] nav.border-b {
+  background-color: var(--op-surface) !important;
+  border-bottom-color: var(--op-border) !important;
+}
+
+/* Desktop active nav tab */
+:root[data-theme^="orange-pink"] nav.border-b button.bg-slate-900 {
+  background: var(--op-gradient) !important;
+  color: #fff !important;
+  box-shadow: var(--op-shadow);
+}
+:root[data-theme^="orange-pink"] nav.border-b button.dark\:bg-white {
+  background: var(--op-gradient) !important;
+  color: #fff !important;
+}
+
+/* Mobile nav active */
+:root[data-theme^="orange-pink"] nav.fixed button.text-slate-900 {
+  color: var(--op-orange) !important;
+}
+:root[data-theme^="orange-pink"] nav.fixed button.dark\:text-white {
+  color: var(--op-orange) !important;
+}
+:root[data-theme^="orange-pink"] nav.fixed span.bg-slate-900,
+:root[data-theme^="orange-pink"] nav.fixed span.dark\:bg-white {
+  background: var(--op-gradient) !important;
+  width: 16px !important;
+  height: 3px !important;
+  border-radius: 2px !important;
+}
+:root[data-theme^="orange-pink"] nav.fixed {
+  background-color: rgb(255 247 242 / 0.97) !important;
+  border-top-color: var(--op-border) !important;
+}
+:root[data-theme="orange-pink-dark"] nav.fixed {
+  background-color: rgb(23 18 20 / 0.97) !important;
+}
+
+/* --- Cards / Surfaces --- */
+:root[data-theme^="orange-pink"] .bg-white,
+:root[data-theme^="orange-pink"] .dark\:bg-slate-900 {
+  background-color: var(--op-surface) !important;
+}
+:root[data-theme^="orange-pink"] .bg-slate-50,
+:root[data-theme^="orange-pink"] .dark\:bg-slate-800\/40 {
+  background-color: var(--op-bg-alt) !important;
+}
+:root[data-theme^="orange-pink"] .bg-slate-100,
+:root[data-theme^="orange-pink"] .dark\:bg-slate-800 {
+  background-color: var(--op-surface-alt) !important;
+}
+
+/* --- Borders --- */
+:root[data-theme^="orange-pink"] .border-slate-200,
+:root[data-theme^="orange-pink"] .dark\:border-slate-800 {
+  border-color: var(--op-border) !important;
+}
+:root[data-theme^="orange-pink"] .border-slate-300,
+:root[data-theme^="orange-pink"] .dark\:border-slate-700 {
+  border-color: var(--op-border-alt) !important;
+}
+
+/* --- Text colors --- */
+:root[data-theme^="orange-pink"] .text-slate-900:not(button),
+:root[data-theme^="orange-pink"] .dark\:text-white:not(button):not(a) {
+  color: var(--op-text) !important;
+}
+:root[data-theme^="orange-pink"] .text-slate-600,
+:root[data-theme^="orange-pink"] .dark\:text-slate-400 {
+  color: var(--op-text-2) !important;
+}
+:root[data-theme^="orange-pink"] .text-slate-500,
+:root[data-theme^="orange-pink"] .dark\:text-slate-500 {
+  color: var(--op-text-3) !important;
+}
+:root[data-theme^="orange-pink"] .text-slate-400 {
+  color: var(--op-text-3) !important;
+}
+
+/* --- Inputs / Search --- */
+:root[data-theme^="orange-pink"] input[type="text"],
+:root[data-theme^="orange-pink"] input[type="search"],
+:root[data-theme^="orange-pink"] input[type="date"],
+:root[data-theme^="orange-pink"] textarea,
+:root[data-theme^="orange-pink"] select {
+  background-color: var(--op-surface) !important;
+  border-color: var(--op-border) !important;
+  color: var(--op-text) !important;
+}
+:root[data-theme^="orange-pink"] input:focus,
+:root[data-theme^="orange-pink"] textarea:focus,
+:root[data-theme^="orange-pink"] select:focus {
+  outline: 2px solid var(--op-orange) !important;
+  outline-offset: 2px;
+  border-color: var(--op-orange) !important;
+  box-shadow: 0 0 0 3px rgb(255 138 61 / 0.15) !important;
+}
+
+/* --- Progress Bars (filled portion) --- */
+:root[data-theme^="orange-pink"] .bg-slate-900.rounded-full,
+:root[data-theme^="orange-pink"] .dark\:bg-white.rounded-full {
+  background: var(--op-gradient) !important;
+}
+:root[data-theme^="orange-pink"] .bg-emerald-500.rounded-full {
+  background: var(--op-gradient) !important;
+}
+
+/* --- Segmented switcher active (Checklists etc) --- */
+:root[data-theme^="orange-pink"] .bg-white.text-slate-900.shadow-xs,
+:root[data-theme^="orange-pink"] .dark\:bg-slate-900.dark\:text-white.shadow-xs {
+  background: var(--op-gradient) !important;
+  color: #fff !important;
+  box-shadow: var(--op-shadow) !important;
+}
+
+/* --- Checkboxes / Check icons in cards --- */
+:root[data-theme^="orange-pink"] .bg-slate-900.text-white.rounded,
+:root[data-theme^="orange-pink"] .bg-slate-900.text-white.rounded-lg,
+:root[data-theme^="orange-pink"] .bg-slate-900.text-white.rounded-xl {
+  background: var(--op-gradient) !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+/* --- Today View hero date label --- */
+:root[data-theme^="orange-pink"] .text-indigo-600,
+:root[data-theme^="orange-pink"] .dark\:text-indigo-400 {
+  color: var(--op-orange) !important;
+}
+:root[data-theme^="orange-pink"] .text-indigo-500 {
+  color: var(--op-coral) !important;
+}
+
+/* --- Modals backdrop --- */
+:root[data-theme^="orange-pink"] .fixed.inset-0.bg-black\/50 {
+  background-color: rgb(36 26 29 / 0.55) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Modal panel */
+:root[data-theme^="orange-pink"] [role="dialog"] {
+  background-color: var(--op-surface) !important;
+  border-color: var(--op-border) !important;
+  box-shadow: var(--op-shadow-lg), 0 0 0 1px var(--op-border-alt) !important;
+}
+
+/* Modal header gradient accent bar */
+:root[data-theme^="orange-pink"] [role="dialog"] > div:first-child {
+  border-bottom-color: var(--op-border) !important;
+  background: linear-gradient(to right, var(--op-bg-alt), var(--op-surface)) !important;
+}
+
+/* --- Hover states for buttons in orange-pink theme --- */
+:root[data-theme^="orange-pink"] button.hover\:bg-slate-100:hover,
+:root[data-theme^="orange-pink"] button.dark\:hover\:bg-slate-800:hover {
+  background-color: var(--op-bg-alt) !important;
+}
+:root[data-theme^="orange-pink"] button.hover\:bg-slate-200:hover {
+  background-color: var(--op-surface-alt) !important;
+}
+
+/* --- Focus ring in orange-pink mode --- */
+:root[data-theme^="orange-pink"] *:focus-visible {
+  outline: 2px solid var(--op-orange) !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --- Scrollbar in orange-pink mode --- */
+:root[data-theme^="orange-pink"] ::-webkit-scrollbar-thumb {
+  background: rgb(255 138 61 / 0.25) !important;
+}
+:root[data-theme^="orange-pink"] ::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 138 61 / 0.45) !important;
+}
+
+/* --- Checklist item checked state --- */
+:root[data-theme^="orange-pink"] .bg-slate-50.border-slate-200 {
+  background-color: rgb(255 240 232 / 0.6) !important;
+  border-color: var(--op-border) !important;
+}
+
+/* Hover lift in orange-pink mode */
+:root[data-theme^="orange-pink"] .hover-lift:hover {
+  box-shadow: var(--op-shadow-lg) !important;
+}
+
+/* --- Today view progress card (special gradient treatment) --- */
+:root[data-theme^="orange-pink"] .space-y-7 > div:nth-child(2) {
+  background: linear-gradient(135deg, var(--op-surface) 60%, rgb(255 138 61 / 0.06) 100%) !important;
+  border-color: var(--op-border) !important;
+}
+
+/* --- College checklist card in Today --- */
+:root[data-theme^="orange-pink"] .space-y-7 > div:nth-child(3) {
+  background: var(--op-surface) !important;
+  border-color: var(--op-border-alt) !important;
+}
+
+/* Quick-add chip buttons checked in Today college section */
+:root[data-theme^="orange-pink"] .bg-slate-900.text-white.rounded-xl {
+  background: var(--op-gradient) !important;
+  color: #fff !important;
+}
+
+/* ============================================================
+   SMOOTH THEME TRANSITIONS (global)
+   ============================================================ */
+html {
+  transition: background-color 250ms ease, color 250ms ease;
+}
+body {
+  transition: background-color 250ms ease, color 250ms ease;
+}
+
 @layer base {
   :root {
     color-scheme: light;
+    scroll-behavior: smooth;
   }
 
   :root.dark {
     color-scheme: dark;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  /* Premium custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184 / 0.35);
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(148 163 184 / 0.6);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgb(71 85 105 / 0.4);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgb(71 85 105 / 0.7);
+  }
+
+  /* Smooth focus ring */
+  *:focus-visible {
+    outline: 2px solid rgb(99 102 241 / 0.7);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 }
 
+@layer utilities {
+  /* Entrance animations */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes progressGrow {
+    from { width: 0%; }
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+
+  @keyframes checkPop {
+    0%   { transform: scale(0.7); opacity: 0; }
+    60%  { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 rgb(99 102 241 / 0.35); }
+    70%  { box-shadow: 0 0 0 8px rgb(99 102 241 / 0); }
+    100% { box-shadow: 0 0 0 0 rgb(99 102 241 / 0); }
+  }
+
+  /* Utility classes */
+  .animate-fade-up {
+    animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease both;
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-check-pop {
+    animation: checkPop 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-pulse-ring {
+    animation: pulseRing 0.6s ease-out;
+  }
+
+  /* Staggered children delays */
+  .stagger-children > *:nth-child(1)  { animation-delay: 0.04s; }
+  .stagger-children > *:nth-child(2)  { animation-delay: 0.08s; }
+  .stagger-children > *:nth-child(3)  { animation-delay: 0.12s; }
+  .stagger-children > *:nth-child(4)  { animation-delay: 0.16s; }
+  .stagger-children > *:nth-child(5)  { animation-delay: 0.20s; }
+  .stagger-children > *:nth-child(6)  { animation-delay: 0.24s; }
+  .stagger-children > *:nth-child(7)  { animation-delay: 0.28s; }
+  .stagger-children > *:nth-child(8)  { animation-delay: 0.32s; }
+  .stagger-children > *:nth-child(n+9){ animation-delay: 0.36s; }
+
+  /* Shimmer loading effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(255 255 255 / 0.6) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Progress bar animated grow */
+  .progress-animated {
+    animation: progressGrow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Glass card effect */
+  .glass-card {
+    backdrop-filter: blur(12px) saturate(1.5);
+    -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  }
+
+  /* Smooth hover lift */
+  .hover-lift {
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -4px rgb(0 0 0 / 0.1);
+  }
+  .dark .hover-lift:hover {
+    box-shadow: 0 8px 24px -4px rgb(0 0 0 / 0.35);
+  }
+
+  /* Interactive button press */
+  .btn-press {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  .btn-press:active {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+
+  /* Tab switch transition */
+  .tab-content-enter {
+    animation: fadeUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}

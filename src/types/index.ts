@@ -92,9 +92,9 @@ export interface DailyState {
 
 export interface AppSettings {
   schemaVersion: number;
-  theme: 'system' | 'light' | 'dark';
-  baselineDate: string; // Initial baseline '2026-10-09'
-  activeDateOverride?: string; // For testing or simulated navigation
+  theme: 'system' | 'light' | 'dark' | 'orange-pink';
+  baselineDate: string;
+  activeDateOverride?: string;
   lastActiveDate: string;
 }
 

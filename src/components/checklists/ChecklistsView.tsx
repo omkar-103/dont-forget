@@ -25,6 +25,7 @@ export const ChecklistsView: React.FC = () => {
     updateChecklistItem,
     resetTodayChecklist,
     openQuickAdd,
+    restoreDefaultChecklists,
   } = useApp();
 
   const [selectedList, setSelectedList] = useState<ChecklistType>('college');
@@ -49,7 +50,7 @@ export const ChecklistsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="space-y-6 pb-20 md:pb-8 stagger-children">
       {/* Segmented Switcher: COLLEGE | EVENTS | TRAVEL */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="inline-flex p-1 bg-slate-200/80 dark:bg-slate-800/80 rounded-xl">
@@ -98,6 +99,23 @@ export const ChecklistsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Restore Defaults button (college only) */}
+          {selectedList === 'college' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Reset college checklist to your default items?')) {
+                  restoreDefaultChecklists();
+                }
+              }}
+              className="min-h-[44px] px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Restore default college items"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Defaults</span>
+            </button>
+          )}
+
           {/* Reset Today Button */}
           <button
             type="button"
@@ -122,7 +140,7 @@ export const ChecklistsView: React.FC = () => {
       </div>
 
       {/* Progress Indicator */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="animate-fade-up p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-colors hover-lift">
         <div className="flex items-center justify-between mb-2">
           <div>
             <div className="font-mono text-sm sm:text-base font-bold text-slate-900 dark:text-white tabular-nums">
@@ -143,7 +161,7 @@ export const ChecklistsView: React.FC = () => {
         {/* Progress Bar */}
         <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
           <div
-            className={`h-full transition-all duration-300 rounded-full ${
+            className={`h-full transition-all duration-500 rounded-full progress-animated ${
               progress.isComplete ? 'bg-emerald-500' : 'bg-slate-900 dark:bg-white'
             }`}
             style={{
