@@ -10,7 +10,7 @@ export interface SecurityConfig {
 }
 
 const VAULT_FILE_PATH = path.resolve(process.cwd(), '.security-vault.json');
-const DEFAULT_PIN = '12345678';
+const DEFAULT_PIN = process.env.APP_SECURITY_PIN || '12345678';
 
 // Hash helper using PBKDF2 with SHA-256
 function hashPin(pin: string, salt: string): string {
