@@ -406,24 +406,22 @@ export const SecurityLockScreen: React.FC = () => {
             )}
           </button>
 
-          {/* Default Password helper card */}
-          {isDefaultPin && (
             <div className="w-full mt-5 pt-4 border-t border-slate-800/80 text-left">
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span className="font-semibold text-slate-300">Default 8-Digit Password:</span>
                 <button
                   type="button"
                   onClick={handleFillDefault}
-                  className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-mono text-[11px] font-bold border border-rose-500/30 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 text-rose-300 font-mono text-xs font-bold border border-rose-500/40 transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
                 >
-                  Fill 12345678
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Instant Unlock (12345678)</span>
                 </button>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500 leading-normal">
-                Initial code is <code className="text-rose-400 font-mono font-bold">12345678</code>. You can customize this to any private 8-digit password in Settings.
+              <p className="mt-1.5 text-[11px] text-slate-400 leading-normal">
+                Default password is <code className="text-rose-400 font-mono font-bold">12345678</code>. Tap above to unlock instantly with zero typing.
               </p>
             </div>
-          )}
         </motion.div>
 
         {/* Security badge footer */}

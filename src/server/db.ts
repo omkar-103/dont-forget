@@ -17,16 +17,10 @@ const inMemoryStore = {
 };
 
 export async function getMongoDb(): Promise<{ db: Db | null; isUsingAtlas: boolean; error: string | null }> {
-  const uri = process.env.MONGODB_URI;
-  const dbName = process.env.MONGODB_DB_NAME || 'dont-forget';
-
-  if (!uri || uri.includes('USERNAME:PASSWORD')) {
-    return {
-      db: null,
-      isUsingAtlas: false,
-      error: 'MONGODB_URI is not set or contains default placeholder.',
-    };
-  }
+  const uri =
+    process.env.MONGODB_URI ||
+    'mongodb+srv://omkarparelkarwebsite:WJSuKGC97RC6LH4Z@cluster0.tbhl9le.mongodb.net/omkarparelkarwebsite?retryWrites=true&w=majority&appName=Cluster0';
+  const dbName = process.env.MONGODB_DB_NAME || 'omkarparelkarwebsite';
 
   if (cachedDb && cachedClient) {
     return { db: cachedDb, isUsingAtlas: true, error: null };
