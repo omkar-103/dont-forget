@@ -1,0 +1,6 @@
+{
+  "name": "Don't Forget — Personal Daily Command Center",
+  "description": "Personal daily command center & essential checklist utility for tasks, assignments, deadlines, events, and what to pack.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
