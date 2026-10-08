@@ -59,7 +59,7 @@ app.post('/api/auth/change-pin', (req, res) => {
 // Session protection middleware for sensitive attendance/subjects API
 const requireValidSession: express.RequestHandler = (req, res, next) => {
   // Allow health check without token
-  if (req.path === '/api/attendance/health') {
+  if (req.path === '/health' || req.originalUrl.includes('/api/attendance/health')) {
     return next();
   }
   const token = (req.headers['x-session-token'] as string) || (req.headers.authorization?.replace('Bearer ', '') as string);
