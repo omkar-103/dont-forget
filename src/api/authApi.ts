@@ -1,6 +1,7 @@
 // Session token management and Auth API client
 
-const TOKEN_KEY = 'dont_forget_session_token';
+let inMemorySessionToken: string | null = null;
+const SESSION_STORAGE_KEY = 'df_active_sess_id';
 
 export interface AuthStatus {
   authenticated: boolean;
@@ -14,29 +15,39 @@ export interface AuthStatus {
 
 export const authStorage = {
   getToken(): string | null {
+    if (inMemorySessionToken) return inMemorySessionToken;
     try {
-      return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
-    }
-  },
-  setToken(token: string | null): void {
-    try {
-      if (token) {
-        sessionStorage.setItem(TOKEN_KEY, token);
-        localStorage.setItem(TOKEN_KEY, token);
-      } else {
-        sessionStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(TOKEN_KEY);
+      const sess = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (sess) {
+        inMemorySessionToken = sess;
+        return sess;
       }
     } catch {
-      // storage unavailable
+      // session storage restricted
+    }
+    return null;
+  },
+  setToken(token: string | null): void {
+    inMemorySessionToken = token;
+    try {
+      if (token) {
+        sessionStorage.setItem(SESSION_STORAGE_KEY, token);
+      } else {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+      // Clean up legacy localStorage keys to ensure zero leaked credentials
+      localStorage.removeItem('dont_forget_session_token');
+      localStorage.removeItem('dont_forget_custom_pin');
+    } catch {
+      // ignore
     }
   },
   clearToken(): void {
+    inMemorySessionToken = null;
     try {
-      sessionStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem('dont_forget_session_token');
+      localStorage.removeItem('dont_forget_custom_pin');
     } catch {
       // ignore
     }
@@ -51,23 +62,24 @@ export const authApi = {
         headers: {
           ...(token ? { 'x-session-token': token } : {}),
         },
+        credentials: 'same-origin',
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        return data;
       }
     } catch (err) {
-      console.warn('Backend auth status unreachable, using local fallback:', err);
+      console.warn('Backend auth status query warning:', err);
     }
 
-    const hasValidToken = Boolean(token && (token.startsWith('sec_') || token === 'client_unlocked'));
     return {
-      authenticated: hasValidToken,
+      authenticated: false,
       sessionInvalidated: false,
       isLockedOut: false,
       lockoutSeconds: 0,
       attemptsRemaining: 5,
-      isDefaultPin: !localStorage.getItem('dont_forget_custom_pin'),
-      activeSessionExists: hasValidToken,
+      isDefaultPin: false,
+      activeSessionExists: false,
     };
   },
 
@@ -83,32 +95,21 @@ export const authApi = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
+        credentials: 'same-origin',
       });
 
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.success && data.token) {
-          authStorage.setToken(data.token);
-          return data;
-        }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.token) {
+        authStorage.setToken(data.token);
+        return data;
       }
-    } catch (err) {
-      console.warn('Backend unlock request failed, checking client fallback:', err);
+      return data;
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Network error verifying password with server.',
+      };
     }
-
-    // Client-side fallback for static Vercel deployments:
-    const customPin = localStorage.getItem('dont_forget_custom_pin');
-    const validPin = customPin || '12345678';
-    if (pin.trim() === validPin) {
-      const token = `sec_client_${Date.now()}`;
-      authStorage.setToken(token);
-      return { success: true, token };
-    }
-
-    return {
-      success: false,
-      error: 'Incorrect 8-digit password. Try 12345678.',
-    };
   },
 
   async lock(): Promise<boolean> {
@@ -120,6 +121,25 @@ export const authApi = {
           'Content-Type': 'application/json',
           ...(token ? { 'x-session-token': token } : {}),
         },
+        credentials: 'same-origin',
+      });
+    } catch {
+      // ignore
+    }
+    authStorage.clearToken();
+    return true;
+  },
+
+  async revokeAll(): Promise<boolean> {
+    const token = authStorage.getToken();
+    try {
+      await fetch('/api/auth/revoke-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-session-token': token } : {}),
+        },
+        credentials: 'same-origin',
       });
     } catch {
       // ignore
@@ -140,6 +160,7 @@ export const authApi = {
         ...(token ? { 'x-session-token': token } : {}),
       },
       body: JSON.stringify({ currentPin, newPin }),
+      credentials: 'same-origin',
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.success && data.token) {

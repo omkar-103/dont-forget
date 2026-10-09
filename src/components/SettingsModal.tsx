@@ -47,7 +47,7 @@ export const SettingsModal: React.FC = () => {
     batchSetupSubjects,
   } = useAttendance();
 
-  const { lock, changePin, isDefaultPin } = useAuth();
+  const { lock, changePin, revokeAll, isDefaultPin } = useAuth();
   const [currentPinInput, setCurrentPinInput] = useState('');
   const [newPinInput, setNewPinInput] = useState('');
   const [confirmPinInput, setConfirmPinInput] = useState('');
@@ -405,14 +405,14 @@ export const SettingsModal: React.FC = () => {
             </div>
           </div>
 
-          {/* PRIVACY NOTE & DATA STATS */}
+          {/* CENTRAL DATABASE & DATA STATS */}
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-start gap-2.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
               <span className="font-semibold text-slate-900 dark:text-slate-200">
-                Your data stays on this device.
+                Central Database Single Source of Truth:
               </span>{' '}
-              Stored securely in localStorage. No external telemetry, no background scrapers, no accounts.
+              Stored in secure MongoDB Atlas (<code className="font-mono text-emerald-600 dark:text-emerald-400">omkarparelkarwebsite</code>). Authoritative cross-device sync active across mobile and desktop.
               <div className="mt-1 font-mono text-[10px] text-slate-400">
                 {data.tasks.length} tasks · {data.assignments.length} assignments ·{' '}
                 {data.events.length} events · {data.checklists.length} checklist items
@@ -428,7 +428,7 @@ export const SettingsModal: React.FC = () => {
                 <span>Site Security & 8-Digit Password</span>
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                Single Active Session
+                Multi-Device Cloud Sessions
               </span>
             </div>
 
@@ -542,7 +542,7 @@ export const SettingsModal: React.FC = () => {
 
                 <div className="flex items-center justify-between pt-1">
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    Changing the password will immediately invalidate all other open sessions.
+                    Changing the password will update the central database and log out other sessions.
                   </p>
                   <button
                     type="submit"
@@ -553,6 +553,30 @@ export const SettingsModal: React.FC = () => {
                   </button>
                 </div>
               </form>
+
+              {/* Revoke all sessions across devices */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    Revoke All Active Sessions
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Require password authentication across all devices and browsers
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm('Log out of all devices and require 8-digit password to log back in?')) {
+                      await revokeAll();
+                      setIsSettingsOpen(false);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/50 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-lg cursor-pointer transition-colors"
+                >
+                  Revoke All
+                </button>
+              </div>
             </div>
           </div>
 

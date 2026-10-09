@@ -25,7 +25,7 @@ import { SecurityLockScreen } from './components/auth/SecurityLockScreen';
 import { RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
-  const { currentTab, setIsSearchOpen, openQuickAdd } = useApp();
+  const { currentTab, setIsSearchOpen, openQuickAdd, isInitialLoading } = useApp();
 
   // Global key bindings
   useEffect(() => {
@@ -54,6 +54,19 @@ const MainContent: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setIsSearchOpen, openQuickAdd]);
+
+  if (isInitialLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-3">
+          <RefreshCw className="w-6 h-6 text-indigo-500 animate-spin" />
+        </div>
+        <p className="text-xs font-mono text-slate-500 tracking-wider uppercase">
+          Loading Central Database...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">

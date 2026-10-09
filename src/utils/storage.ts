@@ -127,7 +127,7 @@ export function generateInitialSeedData(baselineDate: string): AppData {
 /**
  * Checks for legacy Version 1 keys in localStorage and migrates them safely.
  */
-function tryMigrateFromV1(baselineDate: string): AppData | null {
+export function tryMigrateFromV1(baselineDate: string): AppData | null {
   try {
     const v1College = localStorage.getItem('collegeItems');
     const v1Events = localStorage.getItem('eventItems');
@@ -157,7 +157,7 @@ function tryMigrateFromV1(baselineDate: string): AppData | null {
           });
         }
       } catch {
-        // ignore parse error
+        // ignore
       }
     }
 
@@ -205,7 +205,6 @@ function tryMigrateFromV1(baselineDate: string): AppData | null {
       }
     }
 
-    // If migrated checklists are empty, populate defaults
     const finalChecklists = checklists.length > 0 ? checklists : generateDefaultChecklists();
     const seeded = generateInitialSeedData(baselineDate);
     seeded.checklists = finalChecklists;
@@ -215,77 +214,51 @@ function tryMigrateFromV1(baselineDate: string): AppData | null {
   }
 }
 
-export function loadAppData(): AppData {
-  const today = getTodayLocal();
-  const baseline = today;
-
+/**
+ * Detects any legacy local records that need migration to MongoDB Atlas.
+ */
+export function detectLocalLegacyData(): AppData | null {
   try {
+    const migratedFlag = localStorage.getItem('dont_forget_migrated_v3');
+    if (migratedFlag) return null; // already safely migrated
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const data = JSON.parse(raw) as AppData;
-      if (data && data.schemaVersion === 2 && Array.isArray(data.tasks)) {
-        // Strip out old mock seed items if they match old dummy seed IDs
-        const mockTaskIds = new Set(['task_1', 'task_2', 'task_3', 'task_4', 'task_5', 'task_6', 'task_7']);
-        const mockAsgIds = new Set(['asg_1', 'asg_2', 'asg_3']);
-        const mockEvtIds = new Set(['evt_1', 'evt_2']);
-
-        data.tasks = data.tasks.filter((t) => !mockTaskIds.has(t.id));
-        data.assignments = (data.assignments || []).filter((a) => !mockAsgIds.has(a.id));
-        data.events = (data.events || []).filter((e) => !mockEvtIds.has(e.id));
-
-        // Normalize any legacy priorities: Major -> High, Minor -> Low
-        data.tasks = data.tasks.map((task) => {
-          let priority = task.priority;
-          if (priority === 'Major') priority = 'High';
-          else if (priority === 'Minor') priority = 'Low';
-          else if (!priority || (priority !== 'High' && priority !== 'Medium' && priority !== 'Low')) {
-            priority = 'Medium';
-          }
-          return { ...task, priority };
-        });
-
-        // Ensure dailyStates has today's entry
-        if (!data.dailyStates) {
-          data.dailyStates = {};
-        }
-        if (!data.dailyStates[today]) {
-          data.dailyStates[today] = {
-            completedTasks: [],
-            completedChecklistItems: {
-              college: [],
-              events: [],
-              travel: [],
-            },
-          };
-        }
-        data.settings.lastActiveDate = today;
+      if (
+        data &&
+        data.schemaVersion === 2 &&
+        (data.tasks?.length > 0 ||
+          data.assignments?.length > 0 ||
+          data.events?.length > 0 ||
+          Object.keys(data.dailyStates || {}).length > 0)
+      ) {
         return data;
       }
     }
 
-    // Try V1 migration
-    const migrated = tryMigrateFromV1(baseline);
-    if (migrated) {
-      saveAppData(migrated);
-      return migrated;
-    }
-
-    // Fresh initialization
-    const initial = generateInitialSeedData(baseline);
-    saveAppData(initial);
-    return initial;
-  } catch (err) {
-    console.error('Failed to load storage data, falling back to clean seed:', err);
-    const initial = generateInitialSeedData(baseline);
-    return initial;
+    return tryMigrateFromV1(getTodayLocal());
+  } catch {
+    return null;
   }
 }
 
-export function saveAppData(data: AppData): void {
+/**
+ * Marks migration complete and creates a secure backup while freeing primary local storage.
+ */
+export function markMigrationComplete(dataToBackup?: AppData): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (err) {
-    console.error('Failed to save to localStorage:', err);
+    if (dataToBackup) {
+      localStorage.setItem('dont_forget_local_backup', JSON.stringify(dataToBackup));
+    }
+    localStorage.setItem('dont_forget_migrated_v3', new Date().toISOString());
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('collegeItems');
+    localStorage.removeItem('eventItems');
+    localStorage.removeItem('travelItems');
+    localStorage.removeItem('dont_forget_items');
+  } catch {
+    // ignore
   }
 }
 

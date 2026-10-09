@@ -12,6 +12,7 @@ interface AuthContextValue {
   isDefaultPin: boolean;
   unlock: (pin: string) => Promise<{ success: boolean; error?: string }>;
   lock: () => Promise<void>;
+  revokeAll: () => Promise<void>;
   changePin: (currentPin: string, newPin: string) => Promise<{ success: boolean; error?: string }>;
   dismissInvalidationNotice: () => void;
   checkSessionNow: () => Promise<void>;
@@ -27,7 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLockedOut, setIsLockedOut] = useState<boolean>(false);
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number>(5);
-  const [isDefaultPin, setIsDefaultPin] = useState<boolean>(true);
+  const [isDefaultPin, setIsDefaultPin] = useState<boolean>(false);
 
   const lockoutTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -41,34 +42,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsDefaultPin(status.isDefaultPin);
 
       if (status.sessionInvalidated) {
-        // Another device unlocked and displaced this session!
         authStorage.clearToken();
         setIsAuthenticated(false);
         setSessionInvalidated(true);
         setSessionTerminatedReason(
-          'Your session was automatically logged out because the site was unlocked from another device or window.'
+          'Your session expired or was revoked. Please enter your password to unlock.'
         );
       } else if (status.authenticated) {
         setIsAuthenticated(true);
       } else {
-        // No valid token - if default unconfigured PIN, auto-unlock seamlessly (zero human interference)
-        if (status.isDefaultPin && !status.isLockedOut) {
-          try {
-            const autoRes = await authApi.unlock('12345678');
-            if (autoRes.success) {
-              setIsAuthenticated(true);
-              return;
-            }
-          } catch (autoErr) {
-            console.warn('Auto-unlock skipped:', autoErr);
-          }
-        }
+        // Unauthenticated session - mandatory password gate
         authStorage.clearToken();
         setIsAuthenticated(false);
       }
     } catch (err) {
-      // If server unreachable or error, retain current state or fail safe
-      console.warn('Session check failed:', err);
+      console.warn('Session verification check failed:', err);
     } finally {
       setIsLoading(false);
     }
@@ -79,16 +67,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSession();
   }, [checkSession]);
 
-  // Periodic heartbeat session checking (Single Active Session Enforcement)
+  // Periodic heartbeat session checking
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // Check every 3.5 seconds
+    // Check every 15 seconds
     const interval = setInterval(() => {
       checkSession();
-    }, 3500);
+    }, 15000);
 
-    // Also verify immediately when user returns to the tab or app
+    // Verify when user returns to the tab or app
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkSession();
@@ -152,9 +140,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Lock site
+  // Lock site (logout current session)
   const lock = async (): Promise<void> => {
     await authApi.lock();
+    setIsAuthenticated(false);
+  };
+
+  // Revoke all sessions across all devices
+  const revokeAll = async (): Promise<void> => {
+    await authApi.revokeAll();
     setIsAuthenticated(false);
   };
 
@@ -193,6 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isDefaultPin,
         unlock,
         lock,
+        revokeAll,
         changePin,
         dismissInvalidationNotice,
         checkSessionNow: checkSession,

@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   AppData,
   Task,
@@ -10,13 +18,16 @@ import {
   TaskStatus,
 } from '../types';
 import {
-  loadAppData,
-  saveAppData,
   exportDataAsJson,
   generateDefaultChecklists,
   generateInitialSeedData,
+  detectLocalLegacyData,
+  markMigrationComplete,
 } from '../utils/storage';
-import { getTodayLocal, addDays } from '../utils/date';
+import { appDataApi } from '../api/appDataApi';
+import { getTodayLocal } from '../utils/date';
+
+export type SyncStatus = 'synced' | 'saving' | 'error';
 
 interface AppContextValue {
   data: AppData;
@@ -27,6 +38,14 @@ interface AppContextValue {
   setCurrentTab: (tab: NavigationTab) => void;
   filterContext?: string;
   setFilterContext: (ctx: string | undefined) => void;
+
+  // Cloud Sync & Migration
+  syncStatus: SyncStatus;
+  syncError: string | null;
+  migrationNotice: string | null;
+  dismissMigrationNotice: () => void;
+  isInitialLoading: boolean;
+  refreshData: () => Promise<void>;
 
   // Modals
   isSearchOpen: boolean;
@@ -39,35 +58,35 @@ interface AppContextValue {
   setIsSettingsOpen: (open: boolean) => void;
 
   // Task actions
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  toggleTaskComplete: (id: string) => void;
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  toggleTaskComplete: (id: string) => Promise<void>;
   isTaskCompletedOnDate: (task: Task, date: string) => boolean;
-  rescheduleTask: (id: string, newDate: string) => void;
+  rescheduleTask: (id: string, newDate: string) => Promise<void>;
 
   // Assignment actions
-  addAssignment: (asg: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateAssignment: (id: string, updates: Partial<Assignment>) => void;
-  deleteAssignment: (id: string) => void;
-  toggleAssignmentStatus: (id: string) => void;
-  rescheduleAssignment: (id: string, newDeadline: string) => void;
+  addAssignment: (asg: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateAssignment: (id: string, updates: Partial<Assignment>) => Promise<void>;
+  deleteAssignment: (id: string) => Promise<void>;
+  toggleAssignmentStatus: (id: string) => Promise<void>;
+  rescheduleAssignment: (id: string, newDeadline: string) => Promise<void>;
 
   // Event actions
-  addEvent: (evt: Omit<EventItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateEvent: (id: string, updates: Partial<EventItem>) => void;
-  deleteEvent: (id: string) => void;
+  addEvent: (evt: Omit<EventItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateEvent: (id: string, updates: Partial<EventItem>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
 
   // Checklist actions
-  addChecklistItem: (name: string, checklistId: ChecklistType, section?: string) => void;
-  updateChecklistItem: (id: string, updates: Partial<ChecklistItem>) => void;
-  deleteChecklistItem: (id: string) => void;
-  toggleChecklistItem: (id: string, checklistId: ChecklistType) => void;
+  addChecklistItem: (name: string, checklistId: ChecklistType, section?: string) => Promise<void>;
+  updateChecklistItem: (id: string, updates: Partial<ChecklistItem>) => Promise<void>;
+  deleteChecklistItem: (id: string) => Promise<void>;
+  toggleChecklistItem: (id: string, checklistId: ChecklistType) => Promise<void>;
   isChecklistItemChecked: (id: string, checklistId: ChecklistType, date?: string) => boolean;
   getChecklistProgress: (checklistId: ChecklistType, date?: string) => { total: number; checked: number; isComplete: boolean };
-  moveChecklistItem: (id: string, direction: 'up' | 'down') => void;
-  resetTodayChecklist: (checklistId?: ChecklistType) => void;
-  restoreDefaultChecklists: () => void;
+  moveChecklistItem: (id: string, direction: 'up' | 'down') => Promise<void>;
+  resetTodayChecklist: (checklistId?: ChecklistType) => Promise<void>;
+  restoreDefaultChecklists: () => Promise<void>;
 
   // Settings & Theme
   theme: 'system' | 'light' | 'dark' | 'orange-pink';
@@ -76,18 +95,22 @@ interface AppContextValue {
   setTheme: (theme: 'system' | 'light' | 'dark' | 'orange-pink') => void;
   toggleTheme: () => void;
   exportBackup: () => void;
-  importBackup: (newData: AppData) => void;
-  clearAllData: () => void;
+  importBackup: (newData: AppData) => Promise<void>;
+  clearAllData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [data, setData] = useState<AppData>(() => loadAppData());
-  
-  // Active viewing date: starts on local device date
-  const [activeDate, setActiveDateState] = useState<string>(() => getTodayLocal());
+  const initialToday = getTodayLocal();
+  const [data, setData] = useState<AppData>(() => generateInitialSeedData(initialToday));
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [migrationNotice, setMigrationNotice] = useState<string | null>(null);
 
+  // Active viewing date: starts on local device date
+  const [activeDate, setActiveDateState] = useState<string>(() => initialToday);
   const [currentTab, setCurrentTab] = useState<NavigationTab>('today');
   const [filterContext, setFilterContext] = useState<string | undefined>(undefined);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -95,51 +118,144 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [defaultAddType, setDefaultAddType] = useState<'task' | 'assignment' | 'event' | 'checklist'>('task');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Load latest data from MongoDB Atlas on mount
-  useEffect(() => {
-    let mounted = true;
-    async function syncWithServer() {
-      try {
-        const token = localStorage.getItem('dont_forget_session_token');
-        const res = await fetch('/api/app-data', {
-          headers: token ? { 'x-session-token': token } : {},
+  // Reference to track in-flight mutations to prevent race conditions during background sync
+  const isMutatingRef = useRef(false);
+  const currentDataRef = useRef(data);
+  currentDataRef.current = data;
+
+  // Persist updated state directly to MongoDB Atlas
+  const persistToDatabase = useCallback(async (nextData: AppData) => {
+    try {
+      setSyncStatus('saving');
+      setSyncError(null);
+      isMutatingRef.current = true;
+      const saved = await appDataApi.saveAppData(nextData);
+      setData(saved);
+      setSyncStatus('synced');
+    } catch (err: any) {
+      console.error('Error persisting to central database:', err);
+      setSyncStatus('error');
+      setSyncError(err.message || 'Failed to save to central database');
+    } finally {
+      isMutatingRef.current = false;
+    }
+  }, []);
+
+  // Fetch latest authoritative data from MongoDB Atlas
+  const refreshData = useCallback(async () => {
+    if (isMutatingRef.current) return;
+    try {
+      const serverData = await appDataApi.getAppData();
+      if (serverData && !isMutatingRef.current) {
+        setData((prev) => {
+          // If server data is identical or matches, avoid unnecessary re-render
+          const prevStr = JSON.stringify(prev);
+          const nextStr = JSON.stringify(serverData);
+          if (prevStr === nextStr) return prev;
+          return serverData;
         });
-        if (res.ok) {
-          const cloudData = await res.json();
-          if (cloudData && mounted) {
-            setData((prev) => {
-              const merged = { ...prev, ...cloudData };
-              saveAppData(merged);
-              return merged;
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Could not sync with MongoDB Atlas yet:', err);
+        setSyncStatus('synced');
+        setSyncError(null);
+      }
+    } catch (err: any) {
+      console.warn('Background sync warning:', err);
+      // Only set error if we don't have data yet
+      if (isInitialLoading) {
+        setSyncStatus('error');
+        setSyncError(err.message || 'Unable to connect to central database');
       }
     }
-    syncWithServer();
+  }, [isInitialLoading]);
+
+  // Initial Boot: fetch server data and safely migrate any legacy local records
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function initializeAppData() {
+      setIsInitialLoading(true);
+      try {
+        // 1. Fetch cloud data from MongoDB Atlas
+        let cloudData: AppData;
+        try {
+          cloudData = await appDataApi.getAppData();
+        } catch (fetchErr) {
+          console.warn('Could not reach server initially, retrying...', fetchErr);
+          cloudData = generateInitialSeedData(getTodayLocal());
+        }
+
+        // 2. Check if local legacy data exists and needs migration
+        const legacyLocal = detectLocalLegacyData();
+        if (legacyLocal) {
+          try {
+            const migrationResult = await appDataApi.uploadMigrationData(legacyLocal);
+            if (migrationResult.success && migrationResult.appData) {
+              cloudData = migrationResult.appData;
+              markMigrationComplete(legacyLocal);
+              const counts = migrationResult.counts;
+              const totalMigrated = counts.tasksAdded + counts.assignmentsAdded + counts.eventsAdded;
+              if (totalMigrated > 0) {
+                setMigrationNotice(
+                  `Successfully migrated ${totalMigrated} local records (${counts.tasksAdded} tasks, ${counts.assignmentsAdded} assignments, ${counts.eventsAdded} events) to Central Database!`
+                );
+              } else {
+                markMigrationComplete();
+              }
+            }
+          } catch (migErr) {
+            console.error('Data migration notice:', migErr);
+          }
+        }
+
+        if (!isCancelled) {
+          setData(cloudData);
+          setSyncStatus('synced');
+          setSyncError(null);
+        }
+      } catch (err: any) {
+        console.error('Failed to initialize app data:', err);
+        if (!isCancelled) {
+          setSyncStatus('error');
+          setSyncError(err.message || 'Failed to initialize database connection');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsInitialLoading(false);
+        }
+      }
+    }
+
+    initializeAppData();
+
     return () => {
-      mounted = false;
+      isCancelled = true;
     };
   }, []);
 
-  // Sync data to localStorage and MongoDB Atlas whenever it changes
+  // Cross-device continuous synchronization (polling every 10s + visibilitychange + focus)
   useEffect(() => {
-    saveAppData(data);
-    const token = localStorage.getItem('dont_forget_session_token');
-    const timer = setTimeout(() => {
-      fetch('/api/app-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'x-session-token': token } : {}),
-        },
-        body: JSON.stringify(data),
-      }).catch((e) => console.warn('Atlas autosave notice:', e));
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [data]);
+    if (isInitialLoading) return;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    }, 10000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', refreshData);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', refreshData);
+    };
+  }, [isInitialLoading, refreshData]);
 
   // Handle theme changes
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark' | 'orange-pink'>(
@@ -195,20 +311,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => media.removeEventListener('change', listener);
   }, [theme]);
 
-  const setTheme = useCallback((newTheme: 'system' | 'light' | 'dark' | 'orange-pink') => {
-    setThemeState(newTheme);
-    setData((prev) => ({
-      ...prev,
-      settings: {
-        ...prev.settings,
-        theme: newTheme,
-      },
-    }));
-  }, []);
+  const setTheme = useCallback(
+    (newTheme: 'system' | 'light' | 'dark' | 'orange-pink') => {
+      setThemeState(newTheme);
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        settings: {
+          ...currentDataRef.current.settings,
+          theme: newTheme,
+        },
+      };
+      setData(nextData);
+      persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
   const toggleTheme = useCallback(() => {
     if (theme === 'orange-pink') {
-      // Exit orange-pink to system default
       setTheme('system');
       return;
     }
@@ -232,66 +352,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAddOpen(true);
   }, []);
 
-  // Helper to ensure dailyState entry exists for a date
-  const getEnsureDailyState = useCallback((targetDate: string, currentData: AppData) => {
-    if (currentData.dailyStates[targetDate]) {
-      return currentData.dailyStates[targetDate];
-    }
-    return {
-      completedTasks: [],
-      completedChecklistItems: {
-        college: [],
-        events: [],
-        travel: [],
-      },
-    };
+  const dismissMigrationNotice = useCallback(() => {
+    setMigrationNotice(null);
   }, []);
 
   // Check if a task is completed on a specific date
-  const isTaskCompletedOnDate = useCallback((task: Task, date: string): boolean => {
-    if (task.recurring === 'Daily' || task.recurring === 'Weekly') {
-      const dayState = data.dailyStates[date];
-      return Boolean(dayState?.completedTasks?.includes(task.id));
-    }
-    return task.status === 'Completed';
-  }, [data.dailyStates]);
+  const isTaskCompletedOnDate = useCallback(
+    (task: Task, date: string): boolean => {
+      if (task.recurring === 'Daily' || task.recurring === 'Weekly') {
+        const dayState = data.dailyStates[date];
+        return Boolean(dayState?.completedTasks?.includes(task.id));
+      }
+      return task.status === 'Completed';
+    },
+    [data.dailyStates]
+  );
 
-  // Task actions
-  const addTask = useCallback((taskInput: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const now = new Date().toISOString();
-    const newTask: Task = {
-      ...taskInput,
-      id,
-      createdAt: now,
-      updatedAt: now,
-    };
+  // ==========================================
+  // Task Actions (Central Database Authoritative)
+  // ==========================================
+  const addTask = useCallback(
+    async (taskInput: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const now = new Date().toISOString();
+      const newTask: Task = {
+        ...taskInput,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    setData((prev) => ({
-      ...prev,
-      tasks: [newTask, ...prev.tasks],
-    }));
-  }, []);
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        tasks: [newTask, ...currentDataRef.current.tasks],
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    const now = new Date().toISOString();
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) => (t.id === id ? { ...t, ...updates, updatedAt: now } : t)),
-    }));
-  }, []);
+  const updateTask = useCallback(
+    async (id: string, updates: Partial<Task>) => {
+      const now = new Date().toISOString();
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        tasks: currentDataRef.current.tasks.map((t) =>
+          t.id === id ? { ...t, ...updates, updatedAt: now } : t
+        ),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const deleteTask = useCallback((id: string) => {
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.filter((t) => t.id !== id),
-    }));
-  }, []);
+  const deleteTask = useCallback(
+    async (id: string) => {
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        tasks: currentDataRef.current.tasks.filter((t) => t.id !== id),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const toggleTaskComplete = useCallback((id: string) => {
-    setData((prev) => {
+  const toggleTaskComplete = useCallback(
+    async (id: string) => {
+      const prev = currentDataRef.current;
       const task = prev.tasks.find((t) => t.id === id);
-      if (!task) return prev;
+      if (!task) return;
 
       const dateKey = activeDate;
       const dayState = prev.dailyStates[dateKey] || {
@@ -299,13 +431,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         completedChecklistItems: { college: [], events: [], travel: [] },
       };
 
+      let nextData: AppData;
+
       if (task.recurring === 'Daily' || task.recurring === 'Weekly') {
         const isDone = dayState.completedTasks.includes(id);
         const updatedCompletedTasks = isDone
           ? dayState.completedTasks.filter((taskId) => taskId !== id)
           : [...dayState.completedTasks, id];
 
-        return {
+        nextData = {
           ...prev,
           dailyStates: {
             ...prev.dailyStates,
@@ -316,123 +450,178 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           },
         };
       } else {
-        // Non-recurring task
         const nextStatus: TaskStatus = task.status === 'Completed' ? 'Pending' : 'Completed';
         const now = new Date().toISOString();
-
-        return {
+        nextData = {
           ...prev,
           tasks: prev.tasks.map((t) => (t.id === id ? { ...t, status: nextStatus, updatedAt: now } : t)),
         };
       }
-    });
-  }, [activeDate]);
 
-  const rescheduleTask = useCallback((id: string, newDate: string) => {
-    setData((prev) => {
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [activeDate, persistToDatabase]
+  );
+
+  const rescheduleTask = useCallback(
+    async (id: string, newDate: string) => {
       const now = new Date().toISOString();
-      return {
-        ...prev,
-        tasks: prev.tasks.map((t) => (t.id === id ? { ...t, date: newDate, updatedAt: now } : t)),
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        tasks: currentDataRef.current.tasks.map((t) =>
+          t.id === id ? { ...t, date: newDate, updatedAt: now } : t
+        ),
       };
-    });
-  }, []);
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  // Assignment actions
-  const addAssignment = useCallback((asgInput: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const id = `asg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const now = new Date().toISOString();
-    const newAsg: Assignment = {
-      ...asgInput,
-      id,
-      createdAt: now,
-      updatedAt: now,
-    };
+  // ==========================================
+  // Assignment Actions (Central Database Authoritative)
+  // ==========================================
+  const addAssignment = useCallback(
+    async (asgInput: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const id = `asg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const now = new Date().toISOString();
+      const newAsg: Assignment = {
+        ...asgInput,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    setData((prev) => ({
-      ...prev,
-      assignments: [newAsg, ...prev.assignments],
-    }));
-  }, []);
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        assignments: [newAsg, ...currentDataRef.current.assignments],
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const updateAssignment = useCallback((id: string, updates: Partial<Assignment>) => {
-    const now = new Date().toISOString();
-    setData((prev) => ({
-      ...prev,
-      assignments: prev.assignments.map((a) => (a.id === id ? { ...a, ...updates, updatedAt: now } : a)),
-    }));
-  }, []);
+  const updateAssignment = useCallback(
+    async (id: string, updates: Partial<Assignment>) => {
+      const now = new Date().toISOString();
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        assignments: currentDataRef.current.assignments.map((a) =>
+          a.id === id ? { ...a, ...updates, updatedAt: now } : a
+        ),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const deleteAssignment = useCallback((id: string) => {
-    setData((prev) => ({
-      ...prev,
-      assignments: prev.assignments.filter((a) => a.id !== id),
-    }));
-  }, []);
+  const deleteAssignment = useCallback(
+    async (id: string) => {
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        assignments: currentDataRef.current.assignments.filter((a) => a.id !== id),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const toggleAssignmentStatus = useCallback((id: string) => {
-    setData((prev) => {
+  const toggleAssignmentStatus = useCallback(
+    async (id: string) => {
+      const prev = currentDataRef.current;
       const asg = prev.assignments.find((a) => a.id === id);
-      if (!asg) return prev;
+      if (!asg) return;
       const nextStatus = asg.status === 'Completed' ? 'Not Started' : 'Completed';
       const now = new Date().toISOString();
-      return {
+      const nextData: AppData = {
         ...prev,
         assignments: prev.assignments.map((a) =>
           a.id === id ? { ...a, status: nextStatus, updatedAt: now } : a
         ),
       };
-    });
-  }, []);
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const rescheduleAssignment = useCallback((id: string, newDeadline: string) => {
-    setData((prev) => {
+  const rescheduleAssignment = useCallback(
+    async (id: string, newDeadline: string) => {
       const now = new Date().toISOString();
-      return {
-        ...prev,
-        assignments: prev.assignments.map((a) =>
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        assignments: currentDataRef.current.assignments.map((a) =>
           a.id === id ? { ...a, deadline: newDeadline, updatedAt: now } : a
         ),
       };
-    });
-  }, []);
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  // Event actions
-  const addEvent = useCallback((evtInput: Omit<EventItem, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const now = new Date().toISOString();
-    const newEvt: EventItem = {
-      ...evtInput,
-      id,
-      createdAt: now,
-      updatedAt: now,
-    };
+  // ==========================================
+  // Event Actions (Central Database Authoritative)
+  // ==========================================
+  const addEvent = useCallback(
+    async (evtInput: Omit<EventItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const now = new Date().toISOString();
+      const newEvt: EventItem = {
+        ...evtInput,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    setData((prev) => ({
-      ...prev,
-      events: [newEvt, ...prev.events],
-    }));
-  }, []);
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        events: [newEvt, ...currentDataRef.current.events],
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const updateEvent = useCallback((id: string, updates: Partial<EventItem>) => {
-    const now = new Date().toISOString();
-    setData((prev) => ({
-      ...prev,
-      events: prev.events.map((e) => (e.id === id ? { ...e, ...updates, updatedAt: now } : e)),
-    }));
-  }, []);
+  const updateEvent = useCallback(
+    async (id: string, updates: Partial<EventItem>) => {
+      const now = new Date().toISOString();
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        events: currentDataRef.current.events.map((e) =>
+          e.id === id ? { ...e, ...updates, updatedAt: now } : e
+        ),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const deleteEvent = useCallback((id: string) => {
-    setData((prev) => ({
-      ...prev,
-      events: prev.events.filter((e) => e.id !== id),
-    }));
-  }, []);
+  const deleteEvent = useCallback(
+    async (id: string) => {
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        events: currentDataRef.current.events.filter((e) => e.id !== id),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  // Checklist actions (Version 1 & Version 2)
-  const addChecklistItem = useCallback((name: string, checklistId: ChecklistType, section?: string) => {
-    const id = `${checklistId}_${Date.now()}`;
-    setData((prev) => {
+  // ==========================================
+  // Checklist Actions (Central Database Authoritative)
+  // ==========================================
+  const addChecklistItem = useCallback(
+    async (name: string, checklistId: ChecklistType, section?: string) => {
+      const id = `${checklistId}_${Date.now()}`;
+      const prev = currentDataRef.current;
       const existingInList = prev.checklists.filter((c) => c.checklistId === checklistId);
       const maxOrder = existingInList.reduce((max, item) => Math.max(max, item.order || 0), 0);
       const newItem: ChecklistItem = {
@@ -443,29 +632,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         order: maxOrder + 1,
         createdAt: new Date().toISOString(),
       };
-      return {
+
+      const nextData: AppData = {
         ...prev,
         checklists: [...prev.checklists, newItem],
       };
-    });
-  }, []);
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const updateChecklistItem = useCallback((id: string, updates: Partial<ChecklistItem>) => {
-    setData((prev) => ({
-      ...prev,
-      checklists: prev.checklists.map((c) => (c.id === id ? { ...c, ...updates } : c)),
-    }));
-  }, []);
+  const updateChecklistItem = useCallback(
+    async (id: string, updates: Partial<ChecklistItem>) => {
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        checklists: currentDataRef.current.checklists.map((c) =>
+          c.id === id ? { ...c, ...updates } : c
+        ),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const deleteChecklistItem = useCallback((id: string) => {
-    setData((prev) => ({
-      ...prev,
-      checklists: prev.checklists.filter((c) => c.id !== id),
-    }));
-  }, []);
+  const deleteChecklistItem = useCallback(
+    async (id: string) => {
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        checklists: currentDataRef.current.checklists.filter((c) => c.id !== id),
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
 
-  const toggleChecklistItem = useCallback((id: string, checklistId: ChecklistType) => {
-    setData((prev) => {
+  const toggleChecklistItem = useCallback(
+    async (id: string, checklistId: ChecklistType) => {
+      const prev = currentDataRef.current;
       const dateKey = activeDate;
       const currentDay = prev.dailyStates[dateKey] || {
         completedTasks: [],
@@ -478,7 +684,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? currentChecked.filter((itemId) => itemId !== id)
         : [...currentChecked, id];
 
-      return {
+      const nextData: AppData = {
         ...prev,
         dailyStates: {
           ...prev.dailyStates,
@@ -491,8 +697,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           },
         },
       };
-    });
-  }, [activeDate]);
+
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [activeDate, persistToDatabase]
+  );
 
   const isChecklistItemChecked = useCallback(
     (id: string, checklistId: ChecklistType, date?: string): boolean => {
@@ -513,7 +723,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const dateKey = date || activeDate;
       const currentDay = data.dailyStates[dateKey];
       const checkedList = currentDay?.completedChecklistItems?.[checklistId] || [];
-      // count valid checked items
       const validChecked = checkedList.filter((id) => items.some((item) => item.id === id)).length;
 
       return {
@@ -525,24 +734,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [data.checklists, data.dailyStates, activeDate]
   );
 
-  const moveChecklistItem = useCallback((id: string, direction: 'up' | 'down') => {
-    setData((prev) => {
+  const moveChecklistItem = useCallback(
+    async (id: string, direction: 'up' | 'down') => {
+      const prev = currentDataRef.current;
       const item = prev.checklists.find((c) => c.id === id);
-      if (!item) return prev;
+      if (!item) return;
       const list = prev.checklists
         .filter((c) => c.checklistId === item.checklistId)
         .sort((a, b) => a.order - b.order);
 
       const index = list.findIndex((c) => c.id === id);
-      if (index === -1) return prev;
-      if (direction === 'up' && index === 0) return prev;
-      if (direction === 'down' && index === list.length - 1) return prev;
+      if (index === -1) return;
+      if (direction === 'up' && index === 0) return;
+      if (direction === 'down' && index === list.length - 1) return;
 
       const swapIndex = direction === 'up' ? index - 1 : index + 1;
       const currentOrder = list[index].order;
       const swapOrder = list[swapIndex].order;
 
-      return {
+      const nextData: AppData = {
         ...prev,
         checklists: prev.checklists.map((c) => {
           if (c.id === list[index].id) return { ...c, order: swapOrder };
@@ -550,11 +760,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return c;
         }),
       };
-    });
-  }, []);
 
-  const resetTodayChecklist = useCallback((checklistId?: ChecklistType) => {
-    setData((prev) => {
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [persistToDatabase]
+  );
+
+  const resetTodayChecklist = useCallback(
+    async (checklistId?: ChecklistType) => {
+      const prev = currentDataRef.current;
       const dateKey = activeDate;
       const currentDay = prev.dailyStates[dateKey] || {
         completedTasks: [],
@@ -568,7 +783,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newChecklistStates = { college: [], events: [], travel: [] };
       }
 
-      return {
+      const nextData: AppData = {
         ...prev,
         dailyStates: {
           ...prev.dailyStates,
@@ -578,34 +793,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           },
         },
       };
-    });
-  }, [activeDate]);
 
-  const restoreDefaultChecklists = useCallback(() => {
-    setData((prev) => ({
-      ...prev,
-      checklists: generateDefaultChecklists(),
-    }));
-  }, []);
+      setData(nextData);
+      await persistToDatabase(nextData);
+    },
+    [activeDate, persistToDatabase]
+  );
+
+  const restoreDefaultChecklists = useCallback(async () => {
+    try {
+      const defaults = await appDataApi.restoreDefaultChecklists();
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        checklists: defaults,
+      };
+      setData(nextData);
+    } catch {
+      const defaults = generateDefaultChecklists();
+      const nextData: AppData = {
+        ...currentDataRef.current,
+        checklists: defaults,
+      };
+      setData(nextData);
+      await persistToDatabase(nextData);
+    }
+  }, [persistToDatabase]);
 
   const exportBackup = useCallback(() => {
     exportDataAsJson(data);
   }, [data]);
 
-  const importBackup = useCallback((newData: AppData) => {
-    setData(newData);
-    saveAppData(newData);
-  }, []);
+  const importBackup = useCallback(
+    async (newData: AppData) => {
+      setData(newData);
+      await persistToDatabase(newData);
+    },
+    [persistToDatabase]
+  );
 
-  const clearAllData = useCallback(() => {
+  const clearAllData = useCallback(async () => {
     const today = getTodayLocal();
     const fresh = generateInitialSeedData(today);
     fresh.tasks = [];
     fresh.assignments = [];
     fresh.events = [];
     setData(fresh);
-    saveAppData(fresh);
-  }, []);
+    await persistToDatabase(fresh);
+  }, [persistToDatabase]);
 
   const value = useMemo(
     () => ({
@@ -617,6 +851,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentTab,
       filterContext,
       setFilterContext,
+      syncStatus,
+      syncError,
+      migrationNotice,
+      dismissMigrationNotice,
+      isInitialLoading,
+      refreshData,
       isSearchOpen,
       setIsSearchOpen,
       isAddOpen,
@@ -664,6 +904,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resetActiveDateToToday,
       currentTab,
       filterContext,
+      syncStatus,
+      syncError,
+      migrationNotice,
+      dismissMigrationNotice,
+      isInitialLoading,
+      refreshData,
       isSearchOpen,
       isAddOpen,
       defaultAddType,

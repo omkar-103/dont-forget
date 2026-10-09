@@ -183,10 +183,10 @@ export const SecurityLockScreen: React.FC = () => {
             >
               <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-semibold text-amber-300">Session Logged Out</p>
+                <p className="font-semibold text-amber-300">Session Required</p>
                 <p className="mt-0.5 text-amber-200/90 leading-relaxed">
                   {sessionTerminatedReason ||
-                    'Another device or window just unlocked the site. For strict single-session security, this session was logged out.'}
+                    'Your session expired or was logged out. Please enter your 8-digit password to continue.'}
                 </p>
               </div>
               <button
@@ -427,7 +427,7 @@ export const SecurityLockScreen: React.FC = () => {
         {/* Security badge footer */}
         <div className="mt-5 flex items-center gap-2 text-xs text-slate-500">
           <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span>Single-Active-Session Enforcement Enabled · Anti-Bypass Guard</span>
+          <span>Server-Side Password Authentication Active · Central Database Sync Guard</span>
         </div>
       </div>
     </div>

@@ -1,6 +1,5 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import { dbService } from './db';
 
 export interface SecurityConfig {
   hash: string;
@@ -9,33 +8,36 @@ export interface SecurityConfig {
   updatedAt: string;
 }
 
-const VAULT_FILE_PATH = path.resolve(process.cwd(), '.security-vault.json');
 const DEFAULT_PIN = process.env.APP_SECURITY_PIN || '12345678';
 
-// Hash helper using PBKDF2 with SHA-256
+// Hash helper using PBKDF2 with SHA-256 (100,000 rounds)
 function hashPin(pin: string, salt: string): string {
   return crypto.pbkdf2Sync(pin, salt, 100000, 64, 'sha256').toString('hex');
 }
 
-let inMemoryConfig: SecurityConfig | null = null;
-
 class ServerAuthManager {
-  private activeSessionToken: string | null = null;
-  private sessionCreatedAt: number | null = null;
-  private sessionUserAgent: string | null = null;
   private failedAttempts: number = 0;
   private lockoutUntil: number = 0;
+  private memoryConfig: SecurityConfig | null = null;
 
   constructor() {
-    this.ensureVaultInitialized();
+    this.ensureInitialized();
   }
 
-  private ensureVaultInitialized(): void {
+  private async ensureInitialized(): Promise<void> {
     try {
-      if (inMemoryConfig) return;
-      if (fs.existsSync(VAULT_FILE_PATH)) {
+      const existing = await dbService.getAuthConfig('default_user');
+      if (existing && existing.hash && existing.salt) {
+        this.memoryConfig = {
+          hash: existing.hash,
+          salt: existing.salt,
+          isCustomized: existing.isCustomized ?? false,
+          updatedAt: existing.updatedAt || new Date().toISOString(),
+        };
         return;
       }
+
+      // Initialize with default PIN in database
       const salt = crypto.randomBytes(16).toString('hex');
       const hash = hashPin(DEFAULT_PIN, salt);
       const config: SecurityConfig = {
@@ -44,48 +46,50 @@ class ServerAuthManager {
         isCustomized: false,
         updatedAt: new Date().toISOString(),
       };
-      inMemoryConfig = config;
-      try {
-        fs.writeFileSync(VAULT_FILE_PATH, JSON.stringify(config, null, 2), 'utf-8');
-      } catch {
-        // Read-only filesystem in serverless
-      }
+      this.memoryConfig = config;
+      await dbService.saveAuthConfig(config, 'default_user');
     } catch (err) {
-      console.warn('Security vault notice (using memory fallback):', err);
+      console.warn('Auth manager initialization notice (using memory fallback):', err);
+      if (!this.memoryConfig) {
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = hashPin(DEFAULT_PIN, salt);
+        this.memoryConfig = {
+          hash,
+          salt,
+          isCustomized: false,
+          updatedAt: new Date().toISOString(),
+        };
+      }
     }
   }
 
-  private readConfig(): SecurityConfig {
-    if (inMemoryConfig) return inMemoryConfig;
+  private async getConfig(): Promise<SecurityConfig> {
     try {
-      if (fs.existsSync(VAULT_FILE_PATH)) {
-        const raw = fs.readFileSync(VAULT_FILE_PATH, 'utf-8');
-        const parsed = JSON.parse(raw);
-        inMemoryConfig = parsed;
-        return parsed;
+      const dbConfig = await dbService.getAuthConfig('default_user');
+      if (dbConfig && dbConfig.hash && dbConfig.salt) {
+        this.memoryConfig = {
+          hash: dbConfig.hash,
+          salt: dbConfig.salt,
+          isCustomized: dbConfig.isCustomized ?? false,
+          updatedAt: dbConfig.updatedAt || new Date().toISOString(),
+        };
+        return this.memoryConfig;
       }
     } catch {
       // ignore
     }
 
+    if (this.memoryConfig) return this.memoryConfig;
+
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = hashPin(DEFAULT_PIN, salt);
-    inMemoryConfig = {
+    this.memoryConfig = {
       hash,
       salt,
       isCustomized: false,
       updatedAt: new Date().toISOString(),
     };
-    return inMemoryConfig;
-  }
-
-  private saveConfig(config: SecurityConfig): void {
-    inMemoryConfig = config;
-    try {
-      fs.writeFileSync(VAULT_FILE_PATH, JSON.stringify(config, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('Failed to save vault file (retaining in-memory):', err);
-    }
+    return this.memoryConfig;
   }
 
   public getLockoutRemainingSeconds(): number {
@@ -96,12 +100,23 @@ class ServerAuthManager {
     return 0;
   }
 
-  public getStatus(clientToken?: string | null) {
+  public async getStatus(clientToken?: string | null): Promise<{
+    authenticated: boolean;
+    sessionInvalidated: boolean;
+    isLockedOut: boolean;
+    lockoutSeconds: number;
+    attemptsRemaining: number;
+    isDefaultPin: boolean;
+    activeSessionExists: boolean;
+  }> {
     const lockoutSeconds = this.getLockoutRemainingSeconds();
-    const config = this.readConfig();
-    const isValid = Boolean(
-      clientToken && (clientToken.startsWith('sec_') || (this.activeSessionToken && clientToken === this.activeSessionToken))
-    );
+    const config = await this.getConfig();
+
+    let isValid = false;
+    if (clientToken) {
+      const validation = await dbService.validateSession(clientToken);
+      isValid = validation.valid;
+    }
 
     return {
       authenticated: isValid,
@@ -110,20 +125,21 @@ class ServerAuthManager {
       lockoutSeconds,
       attemptsRemaining: Math.max(0, 5 - this.failedAttempts),
       isDefaultPin: !config.isCustomized,
-      activeSessionExists: Boolean(this.activeSessionToken || isValid),
+      activeSessionExists: isValid,
     };
   }
 
-  public unlock(
+  public async unlock(
     pin: string,
-    userAgent?: string
-  ): {
+    userAgent?: string,
+    ip?: string
+  ): Promise<{
     success: boolean;
     token?: string;
     error?: string;
     lockoutSeconds?: number;
     attemptsRemaining?: number;
-  } {
+  }> {
     const lockoutSec = this.getLockoutRemainingSeconds();
     if (lockoutSec > 0) {
       return {
@@ -143,7 +159,7 @@ class ServerAuthManager {
       };
     }
 
-    const config = this.readConfig();
+    const config = await this.getConfig();
     const candidateHash = hashPin(pin.trim(), config.salt);
 
     // Constant-time comparison to prevent timing attacks
@@ -177,12 +193,18 @@ class ServerAuthManager {
     this.failedAttempts = 0;
     this.lockoutUntil = 0;
 
-    // Issue a brand new single-active session token
-    // This immediately revokes any prior session across any browser or device!
-    const newSessionToken = `sec_${crypto.randomUUID()}_${Date.now()}`;
-    this.activeSessionToken = newSessionToken;
-    this.sessionCreatedAt = Date.now();
-    this.sessionUserAgent = userAgent || 'Unknown Device';
+    // Issue a brand new multi-device session token persisted in MongoDB Atlas
+    const tokenBytes = crypto.randomBytes(32).toString('hex');
+    const newSessionToken = `sec_sess_${tokenBytes}_${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days session validity
+
+    await dbService.createSession({
+      token: newSessionToken,
+      userId: 'default_user',
+      expiresAt,
+      userAgent: userAgent || 'Unknown Device',
+      ip: ip || 'unknown',
+    });
 
     return {
       success: true,
@@ -190,26 +212,25 @@ class ServerAuthManager {
     };
   }
 
-  public validateSession(clientToken: string | null | undefined): boolean {
+  public async validateSession(clientToken: string | null | undefined): Promise<boolean> {
     if (!clientToken) return false;
-    if (clientToken.startsWith('sec_')) return true;
-    return Boolean(this.activeSessionToken && clientToken === this.activeSessionToken);
+    const result = await dbService.validateSession(clientToken);
+    return result.valid;
   }
 
-  public lockSession(clientToken?: string | null): boolean {
-    if (clientToken && clientToken === this.activeSessionToken) {
-      this.activeSessionToken = null;
-      this.sessionCreatedAt = null;
-      this.sessionUserAgent = null;
-      return true;
-    }
-    return false;
+  public async lockSession(clientToken?: string | null): Promise<boolean> {
+    if (!clientToken) return false;
+    return await dbService.deleteSession(clientToken);
   }
 
-  public changePin(
+  public async revokeAllSessions(userId = 'default_user'): Promise<boolean> {
+    return await dbService.deleteAllSessions(userId);
+  }
+
+  public async changePin(
     currentPin: string,
     newPin: string
-  ): { success: boolean; token?: string; error?: string } {
+  ): Promise<{ success: boolean; token?: string; error?: string }> {
     if (!currentPin || !/^\d{8}$/.test(currentPin.trim())) {
       return { success: false, error: 'Current password must be 8 digits.' };
     }
@@ -217,7 +238,7 @@ class ServerAuthManager {
       return { success: false, error: 'New password must be exactly 8 digits (0-9).' };
     }
 
-    const config = this.readConfig();
+    const config = await this.getConfig();
     const candidateHash = hashPin(currentPin.trim(), config.salt);
     const hashBufferA = Buffer.from(candidateHash, 'hex');
     const hashBufferB = Buffer.from(config.hash, 'hex');
@@ -229,20 +250,31 @@ class ServerAuthManager {
       return { success: false, error: 'Current 8-digit password is incorrect.' };
     }
 
-    // Generate new salt and save
+    // Generate new salt and save to MongoDB Atlas
     const newSalt = crypto.randomBytes(16).toString('hex');
     const newHash = hashPin(newPin.trim(), newSalt);
-    this.saveConfig({
+    const updatedConfig: SecurityConfig = {
       hash: newHash,
       salt: newSalt,
       isCustomized: true,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    this.memoryConfig = updatedConfig;
+    await dbService.saveAuthConfig(updatedConfig, 'default_user');
 
-    // Invalidate old sessions and issue new session token
-    const newSessionToken = `sec_${crypto.randomUUID()}_${Date.now()}`;
-    this.activeSessionToken = newSessionToken;
-    this.sessionCreatedAt = Date.now();
+    // Invalidate existing sessions for security
+    await dbService.deleteAllSessions('default_user');
+
+    // Issue a fresh session token
+    const tokenBytes = crypto.randomBytes(32).toString('hex');
+    const newSessionToken = `sec_sess_${tokenBytes}_${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await dbService.createSession({
+      token: newSessionToken,
+      userId: 'default_user',
+      expiresAt,
+    });
 
     return {
       success: true,
