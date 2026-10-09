@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { dbService } from './db';
+import { dbService } from './db.ts';
 
 export interface SecurityConfig {
   hash: string;

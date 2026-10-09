@@ -1,8 +1,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { dbService } from './db';
-import { serverAuth } from './auth';
-import { calculateGlobalSummary } from '../utils/attendanceCalculations';
+import { dbService } from './db.ts';
+import { serverAuth } from './auth.ts';
+import { calculateGlobalSummary } from '../utils/attendanceCalculations.ts';
 
 dotenv.config();
 
@@ -71,12 +71,15 @@ function clearSessionCookie(res: express.Response) {
   res.setHeader('Set-Cookie', cookieParts.join('; '));
 }
 
+// Create dedicated API router
+const apiRouter = express.Router();
+
 // ==========================================
 // Public Auth Endpoints
 // ==========================================
 
 // Check auth status & validate session
-app.get('/api/auth/status', async (req, res) => {
+apiRouter.get('/auth/status', async (req, res) => {
   try {
     const token = extractSessionToken(req);
     const status = await serverAuth.getStatus(token);
@@ -87,7 +90,7 @@ app.get('/api/auth/status', async (req, res) => {
 });
 
 // Unlock with 8-digit password
-app.post('/api/auth/unlock', async (req, res) => {
+apiRouter.post('/auth/unlock', async (req, res) => {
   try {
     const { pin } = req.body;
     const userAgent = req.headers['user-agent'] as string;
@@ -103,12 +106,13 @@ app.post('/api/auth/unlock', async (req, res) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: 'Authentication service error' });
+    console.error('CRITICAL Auth error during unlock:', err);
+    res.status(500).json({ success: false, error: 'Authentication service error', details: err?.message || String(err) });
   }
 });
 
 // Explicit session lock / logout (single device logout)
-app.post('/api/auth/lock', async (req, res) => {
+apiRouter.post('/auth/lock', async (req, res) => {
   try {
     const token = extractSessionToken(req);
     if (token) {
@@ -122,7 +126,7 @@ app.post('/api/auth/lock', async (req, res) => {
 });
 
 // Revoke all active sessions across all devices
-app.post('/api/auth/revoke-all', async (req, res) => {
+apiRouter.post('/auth/revoke-all', async (req, res) => {
   try {
     const token = extractSessionToken(req);
     const isValid = await serverAuth.validateSession(token);
@@ -138,7 +142,7 @@ app.post('/api/auth/revoke-all', async (req, res) => {
 });
 
 // Change 8-digit password
-app.post('/api/auth/change-pin', async (req, res) => {
+apiRouter.post('/auth/change-pin', async (req, res) => {
   try {
     const { currentPin, newPin } = req.body;
     const result = await serverAuth.changePin(currentPin, newPin);
@@ -155,9 +159,13 @@ app.post('/api/auth/change-pin', async (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', async (_req, res) => {
-  const status = await dbService.getStatus();
-  res.json({ status: 'ok', database: status });
+apiRouter.get('/health', async (_req, res) => {
+  try {
+    const status = await dbService.getStatus();
+    res.json({ status: 'ok', database: status });
+  } catch (err: any) {
+    res.json({ status: 'ok', database: { isUsingAtlas: false, error: err.message } });
+  }
 });
 
 // ==========================================
@@ -165,7 +173,7 @@ app.get('/api/health', async (_req, res) => {
 // ==========================================
 const requireValidSession: express.RequestHandler = async (req, res, next) => {
   // Allow health check without token
-  if (req.path === '/health' || req.originalUrl.includes('/api/attendance/health')) {
+  if (req.path === '/health' || req.originalUrl.includes('health')) {
     return next();
   }
 
@@ -191,21 +199,21 @@ const requireValidSession: express.RequestHandler = async (req, res, next) => {
 };
 
 // Protect all private API routes
-app.use('/api/app-data', requireValidSession);
-app.use('/api/tasks', requireValidSession);
-app.use('/api/assignments', requireValidSession);
-app.use('/api/events', requireValidSession);
-app.use('/api/checklists', requireValidSession);
-app.use('/api/daily-states', requireValidSession);
-app.use('/api/settings', requireValidSession);
-app.use('/api/migration', requireValidSession);
-app.use('/api/subjects', requireValidSession);
-app.use('/api/attendance', requireValidSession);
+apiRouter.use('/app-data', requireValidSession);
+apiRouter.use('/tasks', requireValidSession);
+apiRouter.use('/assignments', requireValidSession);
+apiRouter.use('/events', requireValidSession);
+apiRouter.use('/checklists', requireValidSession);
+apiRouter.use('/daily-states', requireValidSession);
+apiRouter.use('/settings', requireValidSession);
+apiRouter.use('/migration', requireValidSession);
+apiRouter.use('/subjects', requireValidSession);
+apiRouter.use('/attendance', requireValidSession);
 
 // ==========================================
 // Data Migration & Reconciliation
 // ==========================================
-app.post('/api/migration/upload', async (req, res) => {
+apiRouter.post('/migration/upload', async (req, res) => {
   try {
     const payload = req.body;
     if (!payload || typeof payload !== 'object') {
@@ -219,7 +227,7 @@ app.post('/api/migration/upload', async (req, res) => {
   }
 });
 
-app.get('/api/migration/status', async (_req, res) => {
+apiRouter.get('/migration/status', async (_req, res) => {
   try {
     const data = await dbService.getAppData('default_user');
     res.json({
@@ -236,7 +244,7 @@ app.get('/api/migration/status', async (_req, res) => {
 // ==========================================
 // Central App Data Endpoints (Single Source of Truth)
 // ==========================================
-app.get('/api/app-data', async (_req, res) => {
+apiRouter.get('/app-data', async (_req, res) => {
   try {
     const data = await dbService.getAppData('default_user');
     res.json(data);
@@ -245,7 +253,7 @@ app.get('/api/app-data', async (_req, res) => {
   }
 });
 
-app.post('/api/app-data', async (req, res) => {
+apiRouter.post('/app-data', async (req, res) => {
   try {
     const saved = await dbService.saveAppData(req.body, 'default_user');
     res.json(saved);
@@ -257,7 +265,7 @@ app.post('/api/app-data', async (req, res) => {
 // ==========================================
 // Granular Tasks API
 // ==========================================
-app.get('/api/tasks', async (_req, res) => {
+apiRouter.get('/tasks', async (_req, res) => {
   try {
     const tasks = await dbService.getTasks('default_user');
     res.json(tasks);
@@ -266,7 +274,7 @@ app.get('/api/tasks', async (_req, res) => {
   }
 });
 
-app.post('/api/tasks', async (req, res) => {
+apiRouter.post('/tasks', async (req, res) => {
   try {
     const created = await dbService.createTask(req.body, 'default_user');
     res.status(201).json(created);
@@ -275,7 +283,7 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-app.patch('/api/tasks/:id', async (req, res) => {
+apiRouter.patch('/tasks/:id', async (req, res) => {
   try {
     const updated = await dbService.updateTask(req.params.id, req.body, 'default_user');
     if (!updated) return res.status(404).json({ error: 'Task not found' });
@@ -285,7 +293,7 @@ app.patch('/api/tasks/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/tasks/:id', async (req, res) => {
+apiRouter.delete('/tasks/:id', async (req, res) => {
   try {
     const success = await dbService.deleteTask(req.params.id, 'default_user');
     res.json({ success });
@@ -297,7 +305,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
 // ==========================================
 // Granular Assignments API
 // ==========================================
-app.get('/api/assignments', async (_req, res) => {
+apiRouter.get('/assignments', async (_req, res) => {
   try {
     const assignments = await dbService.getAssignments('default_user');
     res.json(assignments);
@@ -306,7 +314,7 @@ app.get('/api/assignments', async (_req, res) => {
   }
 });
 
-app.post('/api/assignments', async (req, res) => {
+apiRouter.post('/assignments', async (req, res) => {
   try {
     const created = await dbService.createAssignment(req.body, 'default_user');
     res.status(201).json(created);
@@ -315,7 +323,7 @@ app.post('/api/assignments', async (req, res) => {
   }
 });
 
-app.patch('/api/assignments/:id', async (req, res) => {
+apiRouter.patch('/assignments/:id', async (req, res) => {
   try {
     const updated = await dbService.updateAssignment(req.params.id, req.body, 'default_user');
     if (!updated) return res.status(404).json({ error: 'Assignment not found' });
@@ -325,7 +333,7 @@ app.patch('/api/assignments/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/assignments/:id', async (req, res) => {
+apiRouter.delete('/assignments/:id', async (req, res) => {
   try {
     const success = await dbService.deleteAssignment(req.params.id, 'default_user');
     res.json({ success });
@@ -337,7 +345,7 @@ app.delete('/api/assignments/:id', async (req, res) => {
 // ==========================================
 // Granular Events API
 // ==========================================
-app.get('/api/events', async (_req, res) => {
+apiRouter.get('/events', async (_req, res) => {
   try {
     const events = await dbService.getEvents('default_user');
     res.json(events);
@@ -346,7 +354,7 @@ app.get('/api/events', async (_req, res) => {
   }
 });
 
-app.post('/api/events', async (req, res) => {
+apiRouter.post('/events', async (req, res) => {
   try {
     const created = await dbService.createEvent(req.body, 'default_user');
     res.status(201).json(created);
@@ -355,7 +363,7 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-app.patch('/api/events/:id', async (req, res) => {
+apiRouter.patch('/events/:id', async (req, res) => {
   try {
     const updated = await dbService.updateEvent(req.params.id, req.body, 'default_user');
     if (!updated) return res.status(404).json({ error: 'Event not found' });
@@ -365,7 +373,7 @@ app.patch('/api/events/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/events/:id', async (req, res) => {
+apiRouter.delete('/events/:id', async (req, res) => {
   try {
     const success = await dbService.deleteEvent(req.params.id, 'default_user');
     res.json({ success });
@@ -377,7 +385,7 @@ app.delete('/api/events/:id', async (req, res) => {
 // ==========================================
 // Granular Checklists API
 // ==========================================
-app.get('/api/checklists', async (_req, res) => {
+apiRouter.get('/checklists', async (_req, res) => {
   try {
     const checklists = await dbService.getChecklists('default_user');
     res.json(checklists);
@@ -386,7 +394,7 @@ app.get('/api/checklists', async (_req, res) => {
   }
 });
 
-app.post('/api/checklists', async (req, res) => {
+apiRouter.post('/checklists', async (req, res) => {
   try {
     const created = await dbService.createChecklistItem(req.body, 'default_user');
     res.status(201).json(created);
@@ -395,7 +403,7 @@ app.post('/api/checklists', async (req, res) => {
   }
 });
 
-app.patch('/api/checklists/:id', async (req, res) => {
+apiRouter.patch('/checklists/:id', async (req, res) => {
   try {
     const updated = await dbService.updateChecklistItem(req.params.id, req.body, 'default_user');
     if (!updated) return res.status(404).json({ error: 'Checklist item not found' });
@@ -405,7 +413,7 @@ app.patch('/api/checklists/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/checklists/:id', async (req, res) => {
+apiRouter.delete('/checklists/:id', async (req, res) => {
   try {
     const success = await dbService.deleteChecklistItem(req.params.id, 'default_user');
     res.json({ success });
@@ -414,7 +422,7 @@ app.delete('/api/checklists/:id', async (req, res) => {
   }
 });
 
-app.post('/api/checklists/restore-defaults', async (_req, res) => {
+apiRouter.post('/checklists/restore-defaults', async (_req, res) => {
   try {
     const items = await dbService.restoreDefaultChecklists('default_user');
     res.json(items);
@@ -428,7 +436,7 @@ app.post('/api/checklists/restore-defaults', async (_req, res) => {
 // ==========================================
 
 // Health and DB status
-app.get('/api/attendance/health', async (_req, res) => {
+apiRouter.get('/attendance/health', async (_req, res) => {
   try {
     const status = await dbService.getStatus();
     res.json(status);
@@ -438,7 +446,7 @@ app.get('/api/attendance/health', async (_req, res) => {
 });
 
 // Aggregated Summary
-app.get('/api/attendance/summary', async (_req, res) => {
+apiRouter.get('/attendance/summary', async (_req, res) => {
   try {
     const [subjects, records, settings] = await Promise.all([
       dbService.getSubjects('default_user'),
@@ -455,7 +463,7 @@ app.get('/api/attendance/summary', async (_req, res) => {
 });
 
 // Subjects endpoints
-app.get('/api/subjects', async (_req, res) => {
+apiRouter.get('/subjects', async (_req, res) => {
   try {
     const subjects = await dbService.getSubjects('default_user');
     res.json(subjects);
@@ -464,7 +472,7 @@ app.get('/api/subjects', async (_req, res) => {
   }
 });
 
-app.post('/api/subjects', async (req, res) => {
+apiRouter.post('/subjects', async (req, res) => {
   try {
     const { name, code } = req.body;
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -477,7 +485,7 @@ app.post('/api/subjects', async (req, res) => {
   }
 });
 
-app.post('/api/subjects/batch', async (req, res) => {
+apiRouter.post('/subjects/batch', async (req, res) => {
   try {
     const { subjects } = req.body;
     if (!Array.isArray(subjects) || subjects.length === 0) {
@@ -491,7 +499,7 @@ app.post('/api/subjects/batch', async (req, res) => {
   }
 });
 
-app.patch('/api/subjects/:id', async (req, res) => {
+apiRouter.patch('/subjects/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -505,7 +513,7 @@ app.patch('/api/subjects/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/subjects/:id', async (req, res) => {
+apiRouter.delete('/subjects/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const records = await dbService.getAttendanceRecords({ subjectId: id }, 'default_user');
@@ -523,7 +531,7 @@ app.delete('/api/subjects/:id', async (req, res) => {
 });
 
 // Attendance records endpoints
-app.get('/api/attendance', async (req, res) => {
+apiRouter.get('/attendance', async (req, res) => {
   try {
     const { subjectId, type, status } = req.query as {
       subjectId?: string;
@@ -537,7 +545,7 @@ app.get('/api/attendance', async (req, res) => {
   }
 });
 
-app.post('/api/attendance', async (req, res) => {
+apiRouter.post('/attendance', async (req, res) => {
   try {
     const { subjectId, type, status, date, time, notes } = req.body;
 
@@ -575,7 +583,7 @@ app.post('/api/attendance', async (req, res) => {
   }
 });
 
-app.patch('/api/attendance/:id', async (req, res) => {
+apiRouter.patch('/attendance/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -589,7 +597,7 @@ app.patch('/api/attendance/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/attendance/:id', async (req, res) => {
+apiRouter.delete('/attendance/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const success = await dbService.deleteAttendanceRecord(id, 'default_user');
@@ -600,7 +608,7 @@ app.delete('/api/attendance/:id', async (req, res) => {
 });
 
 // Settings endpoints
-app.get('/api/attendance/settings', async (_req, res) => {
+apiRouter.get('/attendance/settings', async (_req, res) => {
   try {
     const settings = await dbService.getSettings('default_user');
     res.json(settings);
@@ -609,7 +617,7 @@ app.get('/api/attendance/settings', async (_req, res) => {
   }
 });
 
-app.post('/api/attendance/settings', async (req, res) => {
+apiRouter.post('/attendance/settings', async (req, res) => {
   try {
     const { requiredAttendance } = req.body;
     if (typeof requiredAttendance !== 'number' || requiredAttendance < 0 || requiredAttendance > 100) {
@@ -621,5 +629,9 @@ app.post('/api/attendance/settings', async (req, res) => {
     res.status(500).json({ error: 'Failed to save settings' });
   }
 });
+
+// Mount the apiRouter at both '/api' and '/' for complete Vercel & local compatibility
+app.use('/api', apiRouter);
+app.use(apiRouter);
 
 export default app;

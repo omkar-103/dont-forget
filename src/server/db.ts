@@ -1,5 +1,5 @@
 import { MongoClient, Db, ObjectId } from 'mongodb';
-import {
+import type {
   Subject,
   AttendanceRecord,
   AttendanceSettings,
@@ -10,7 +10,7 @@ import {
   DailyState,
   AppSettings,
   AppData,
-} from '../types';
+} from '../types/index.ts';
 
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
