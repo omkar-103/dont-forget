@@ -147,7 +147,7 @@ export const SecurityLockScreen: React.FC = () => {
   }, [pin, isLockedOut, isSubmitting, handleUnlock]);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 bg-slate-950 text-slate-100 relative overflow-x-hidden selection:bg-rose-500 selection:text-white">
+    <div className="min-h-screen w-full flex items-center justify-center p-3 sm:p-6 bg-slate-950 text-slate-100 relative overflow-x-hidden selection:bg-rose-500 selection:text-white">
       {/* Ambient background decoration */}
       <div className="fixed inset-0 pointer-events-none opacity-40">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-gradient-to-tr from-rose-900/30 via-indigo-900/30 to-emerald-900/20 rounded-full blur-3xl" />
@@ -210,7 +210,7 @@ export const SecurityLockScreen: React.FC = () => {
                 }
               : {}
           }
-          className="w-full bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-3xl p-5 sm:p-7 shadow-2xl shadow-black/80 flex flex-col items-center text-center"
+          className="w-full bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-3xl p-4 sm:p-7 shadow-2xl shadow-black/80 flex flex-col items-center text-center"
         >
           {/* Header Shield & Status */}
           <div className="relative mb-3">
@@ -244,8 +244,8 @@ export const SecurityLockScreen: React.FC = () => {
             <span>Laptop Keyboard Ready</span>
           </div>
 
-          {/* 8-Digit PIN Slots */}
-          <div className="w-full flex items-center justify-center gap-1.5 sm:gap-2.5 mb-3">
+          {/* 8-Digit PIN Slots - Responsive sizes for all screen widths */}
+          <div className="w-full flex items-center justify-center gap-1 sm:gap-2 mb-3 px-0.5">
             {Array.from({ length: 8 }).map((_, idx) => {
               const isFilled = idx < pin.length;
               const isCurrent = idx === pin.length && !isLockedOut;
@@ -254,7 +254,7 @@ export const SecurityLockScreen: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  className={`w-9 h-11 sm:w-11 sm:h-13 rounded-xl border flex items-center justify-center font-mono font-bold text-lg sm:text-xl transition-all duration-200 select-none ${
+                  className={`w-7 h-10 min-[370px]:w-8 min-[370px]:h-11 sm:w-11 sm:h-13 rounded-lg sm:rounded-xl border flex items-center justify-center font-mono font-bold text-base sm:text-xl transition-all duration-200 select-none ${
                     isFilled
                       ? 'border-rose-500/80 bg-rose-500/15 text-white shadow-sm shadow-rose-500/20'
                       : isCurrent
@@ -266,7 +266,7 @@ export const SecurityLockScreen: React.FC = () => {
                     showDigits ? (
                       <span className="animate-in fade-in zoom-in-75 duration-150">{digitVal}</span>
                     ) : (
-                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-rose-400 animate-in zoom-in-50 duration-150 shadow-sm shadow-rose-400" />
+                      <span className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-rose-400 animate-in zoom-in-50 duration-150 shadow-sm shadow-rose-400" />
                     )
                   ) : isCurrent ? (
                     <span className="w-1.5 h-4 bg-indigo-400 rounded-full animate-pulse" />

@@ -129,8 +129,8 @@ apiRouter.post('/auth/lock', async (req, res) => {
 apiRouter.post('/auth/revoke-all', async (req, res) => {
   try {
     const token = extractSessionToken(req);
-    const isValid = await serverAuth.validateSession(token);
-    if (!isValid) {
+    const validation = await serverAuth.validateSession(token);
+    if (!validation.valid) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     await serverAuth.revokeAllSessions('default_user');
@@ -185,8 +185,14 @@ const requireValidSession: express.RequestHandler = async (req, res, next) => {
     });
   }
 
-  const isValid = await serverAuth.validateSession(token);
-  if (!isValid) {
+  const validation = await serverAuth.validateSession(token);
+  if (validation.isError) {
+    return res.status(503).json({
+      error: 'Security service temporarily unavailable. Reconnecting...',
+      retryable: true,
+    });
+  }
+  if (!validation.valid) {
     clearSessionCookie(res);
     return res.status(401).json({
       error: 'Session Expired or Revoked: Please enter the 8-digit password to unlock.',

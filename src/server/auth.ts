@@ -15,6 +15,9 @@ function hashPin(pin: string, salt: string): string {
   return crypto.pbkdf2Sync(pin, salt, 100000, 64, 'sha256').toString('hex');
 }
 
+const DEFAULT_SALT = '8e2d722c371bde479027d72ed9e7d3e5';
+const DEFAULT_HASH = hashPin(DEFAULT_PIN, DEFAULT_SALT);
+
 class ServerAuthManager {
   private failedAttempts: number = 0;
   private lockoutUntil: number = 0;
@@ -38,11 +41,9 @@ class ServerAuthManager {
       }
 
       // Initialize with default PIN in database
-      const salt = crypto.randomBytes(16).toString('hex');
-      const hash = hashPin(DEFAULT_PIN, salt);
       const config: SecurityConfig = {
-        hash,
-        salt,
+        hash: DEFAULT_HASH,
+        salt: DEFAULT_SALT,
         isCustomized: false,
         updatedAt: new Date().toISOString(),
       };
@@ -51,11 +52,9 @@ class ServerAuthManager {
     } catch (err) {
       console.warn('Auth manager initialization notice (using memory fallback):', err);
       if (!this.memoryConfig) {
-        const salt = crypto.randomBytes(16).toString('hex');
-        const hash = hashPin(DEFAULT_PIN, salt);
         this.memoryConfig = {
-          hash,
-          salt,
+          hash: DEFAULT_HASH,
+          salt: DEFAULT_SALT,
           isCustomized: false,
           updatedAt: new Date().toISOString(),
         };
@@ -81,11 +80,9 @@ class ServerAuthManager {
 
     if (this.memoryConfig) return this.memoryConfig;
 
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = hashPin(DEFAULT_PIN, salt);
     this.memoryConfig = {
-      hash,
-      salt,
+      hash: DEFAULT_HASH,
+      salt: DEFAULT_SALT,
       isCustomized: false,
       updatedAt: new Date().toISOString(),
     };
@@ -212,10 +209,13 @@ class ServerAuthManager {
     };
   }
 
-  public async validateSession(clientToken: string | null | undefined): Promise<boolean> {
-    if (!clientToken) return false;
+  public async validateSession(clientToken: string | null | undefined): Promise<{ valid: boolean; isError?: boolean }> {
+    if (!clientToken) return { valid: false };
     const result = await dbService.validateSession(clientToken);
-    return result.valid;
+    if (result.error) {
+      return { valid: false, isError: true };
+    }
+    return { valid: result.valid };
   }
 
   public async lockSession(clientToken?: string | null): Promise<boolean> {

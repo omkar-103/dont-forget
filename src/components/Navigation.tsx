@@ -57,8 +57,8 @@ export const Navigation: React.FC = () => {
       </nav>
 
       {/* Mobile Fixed Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-safe">
-        <div className="grid grid-cols-7 items-center h-15 px-1 max-w-lg mx-auto">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 4px)' }}>
+        <div className="grid grid-cols-7 items-end h-14 px-0.5 max-w-screen mx-auto">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
@@ -66,23 +66,26 @@ export const Navigation: React.FC = () => {
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`flex flex-col items-center justify-center min-h-[44px] py-1 transition-all duration-200 cursor-pointer active:scale-90 ${
+                className={`flex flex-col items-center justify-center min-h-[44px] pt-1 pb-0.5 px-0.5 transition-all duration-200 cursor-pointer active:scale-90 ${
                   isActive
-                    ? 'text-slate-900 dark:text-white font-semibold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'text-slate-900 dark:text-white'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
               >
-                <Icon
-                  className={`w-4.5 h-4.5 transition-all duration-200 ${
-                    isActive ? 'scale-115 text-slate-900 dark:text-white' : 'text-slate-400'
-                  }`}
-                />
-                <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[52px]">
+                <div className={`relative flex items-center justify-center w-8 h-6 rounded-lg transition-all duration-200 ${
+                  isActive ? 'bg-slate-100 dark:bg-slate-800' : ''
+                }`}>
+                  <Icon
+                    className={`w-4 h-4 transition-all duration-200 ${
+                      isActive ? 'text-slate-900 dark:text-white' : 'text-slate-400'
+                    }`}
+                  />
+                </div>
+                <span className={`w-full truncate px-0.5 text-center text-[9px] min-[390px]:text-[10px] tracking-tight mt-0.5 leading-tight ${
+                  isActive ? 'text-slate-900 dark:text-white font-bold' : 'font-medium'
+                }`}>
                   {item.label}
                 </span>
-                {isActive && (
-                  <span className="w-1 h-1 bg-slate-900 dark:bg-white rounded-full mt-0.5 animate-scale-in" />
-                )}
               </button>
             );
           })}

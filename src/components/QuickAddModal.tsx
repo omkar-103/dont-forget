@@ -75,9 +75,17 @@ export const QuickAddModal: React.FC = () => {
   const [attNotes, setAttNotes] = useState('');
 
   const [error, setError] = useState<string | null>(null);
+  // Prevent duplicate form submissions
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // FIX: Only reset form dates when the modal OPENS (isAddOpen changes true).
+  // Removing 'subjects', 'attSubjectId', and 'activeDate' from deps
+  // prevented the form from resetting mid-entry when background polls updated
+  // attendance subjects or the date changed.
+  const prevOpenRef = React.useRef(false);
   useEffect(() => {
-    if (isAddOpen) {
+    if (isAddOpen && !prevOpenRef.current) {
+      // Modal just opened — reset to defaults
       setActiveTab(defaultAddType);
       setTaskDate(activeDate);
       setAsgDeadline(activeDate);
@@ -88,8 +96,11 @@ export const QuickAddModal: React.FC = () => {
         setAttSubjectId(subjects[0].id);
       }
       setError(null);
+      setIsSubmitting(false);
     }
-  }, [isAddOpen, defaultAddType, activeDate, subjects, attSubjectId]);
+    prevOpenRef.current = isAddOpen;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAddOpen]); // INTENTIONALLY only re-run when modal open state changes
 
   if (!isAddOpen) return null;
 
@@ -120,8 +131,9 @@ export const QuickAddModal: React.FC = () => {
     handleClose();
   };
 
-  const handleAssignmentSubmit = (e: React.FormEvent) => {
+  const handleAssignmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!asgTitle.trim()) {
       setError('Please provide an assignment title.');
       return;
@@ -135,20 +147,30 @@ export const QuickAddModal: React.FC = () => {
       return;
     }
 
-    addAssignment({
-      title: asgTitle.trim(),
-      subject: asgSubject.trim(),
-      description: asgDesc.trim() || undefined,
-      assignedDate: activeDate,
-      deadline: asgDeadline,
-      status: 'Not Started',
-      priority: asgPriority,
-      notes: asgDesc.trim() || undefined,
-    });
-    setAsgTitle('');
-    setAsgSubject('');
-    setAsgDesc('');
-    handleClose();
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await addAssignment({
+        title: asgTitle.trim(),
+        subject: asgSubject.trim(),
+        description: asgDesc.trim() || undefined,
+        assignedDate: activeDate,
+        deadline: asgDeadline,
+        status: 'Not Started',
+        priority: asgPriority,
+        notes: asgDesc.trim() || undefined,
+      });
+      // Only clear form after successful save
+      setAsgTitle('');
+      setAsgSubject('');
+      setAsgDesc('');
+      handleClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save assignment. Please try again.');
+      // Preserve form values on error so user can retry
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEventSubmit = (e: React.FormEvent) => {
@@ -246,21 +268,21 @@ export const QuickAddModal: React.FC = () => {
         </div>
 
         {/* Tab Selector */}
-        <div className="px-5 pt-3 pb-1 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-lg">
+        <div className="px-4 sm:px-5 pt-3 pb-1 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-lg overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('task');
                 setError(null);
               }}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              className={`flex-1 min-w-[70px] py-1.5 px-2 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'task'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <CheckSquare className="w-3.5 h-3.5" />
+              <CheckSquare className="w-3.5 h-3.5 shrink-0" />
               <span>Task</span>
             </button>
             <button
@@ -269,13 +291,13 @@ export const QuickAddModal: React.FC = () => {
                 setActiveTab('assignment');
                 setError(null);
               }}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              className={`flex-1 min-w-[90px] py-1.5 px-2 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'assignment'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5" />
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
               <span>Assignment</span>
             </button>
             <button
@@ -284,13 +306,13 @@ export const QuickAddModal: React.FC = () => {
                 setActiveTab('event');
                 setError(null);
               }}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              className={`flex-1 min-w-[70px] py-1.5 px-2 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'event'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Trophy className="w-3.5 h-3.5" />
+              <Trophy className="w-3.5 h-3.5 shrink-0" />
               <span>Event</span>
             </button>
             <button
@@ -299,13 +321,13 @@ export const QuickAddModal: React.FC = () => {
                 setActiveTab('checklist');
                 setError(null);
               }}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              className={`flex-1 min-w-[80px] py-1.5 px-2 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'checklist'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <span>Checklist</span>
             </button>
             <button
@@ -314,13 +336,13 @@ export const QuickAddModal: React.FC = () => {
                 setActiveTab('attendance');
                 setError(null);
               }}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              className={`flex-1 min-w-[90px] py-1.5 px-2 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'attendance'
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <GraduationCap className="w-3.5 h-3.5" />
+              <GraduationCap className="w-3.5 h-3.5 shrink-0" />
               <span>Attendance</span>
             </button>
           </div>
@@ -546,15 +568,27 @@ export const QuickAddModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="min-h-[44px] px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                  disabled={isSubmitting}
+                  className="min-h-[44px] px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="min-h-[44px] px-5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold rounded-lg shadow-sm cursor-pointer"
+                  disabled={isSubmitting}
+                  className="min-h-[44px] px-5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold rounded-lg shadow-sm cursor-pointer disabled:opacity-60 flex items-center gap-2"
                 >
-                  Add Assignment
+                  {isSubmitting ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    'Add Assignment'
+                  )}
                 </button>
               </div>
             </form>

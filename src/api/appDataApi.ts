@@ -19,7 +19,7 @@ export const appDataApi = {
   async getAppData(): Promise<AppData> {
     const res = await fetch('/api/app-data', {
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -33,7 +33,7 @@ export const appDataApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -48,7 +48,7 @@ export const appDataApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(task),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -62,7 +62,7 @@ export const appDataApi = {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -75,7 +75,7 @@ export const appDataApi = {
     const res = await fetch(`/api/tasks/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to delete task');
     return true;
@@ -87,7 +87,7 @@ export const appDataApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(assignment),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -101,7 +101,7 @@ export const appDataApi = {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -114,7 +114,7 @@ export const appDataApi = {
     const res = await fetch(`/api/assignments/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to delete assignment');
     return true;
@@ -126,7 +126,7 @@ export const appDataApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(event),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -140,7 +140,7 @@ export const appDataApi = {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -153,7 +153,7 @@ export const appDataApi = {
     const res = await fetch(`/api/events/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to delete event');
     return true;
@@ -165,7 +165,7 @@ export const appDataApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(item),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -179,7 +179,7 @@ export const appDataApi = {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -192,7 +192,7 @@ export const appDataApi = {
     const res = await fetch(`/api/checklists/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to delete checklist item');
     return true;
@@ -202,7 +202,7 @@ export const appDataApi = {
     const res = await fetch('/api/checklists/restore-defaults', {
       method: 'POST',
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to restore checklist defaults');
     return res.json();
@@ -223,7 +223,7 @@ export const appDataApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -240,7 +240,7 @@ export const appDataApi = {
   }> {
     const res = await fetch('/api/migration/status', {
       headers: getHeaders(),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to query migration status');
     return res.json();

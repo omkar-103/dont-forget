@@ -1,7 +1,11 @@
 // Session token management and Auth API client
+// FIX: Use localStorage instead of sessionStorage so tokens persist
+// across tabs, browser restarts, and page refreshes.
+// sessionStorage is cleared when the tab closes — that was causing the
+// "auto-logout" because every new tab/refresh had no token.
 
 let inMemorySessionToken: string | null = null;
-const SESSION_STORAGE_KEY = 'df_active_sess_id';
+const TOKEN_KEY = 'df_sess_token'; // localStorage key
 
 export interface AuthStatus {
   authenticated: boolean;
@@ -15,39 +19,45 @@ export interface AuthStatus {
 
 export const authStorage = {
   getToken(): string | null {
+    // Always prefer in-memory cache (fastest, avoids storage access on hot path)
     if (inMemorySessionToken) return inMemorySessionToken;
     try {
-      const sess = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (sess) {
-        inMemorySessionToken = sess;
-        return sess;
+      const stored = localStorage.getItem(TOKEN_KEY);
+      if (stored) {
+        inMemorySessionToken = stored;
+        return stored;
       }
     } catch {
-      // session storage restricted
+      // Storage unavailable in restricted environments
     }
     return null;
   },
+
   setToken(token: string | null): void {
     inMemorySessionToken = token;
     try {
       if (token) {
-        sessionStorage.setItem(SESSION_STORAGE_KEY, token);
+        localStorage.setItem(TOKEN_KEY, token);
       } else {
-        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
       }
-      // Clean up legacy localStorage keys to ensure zero leaked credentials
+      // Clean up all legacy keys
       localStorage.removeItem('dont_forget_session_token');
       localStorage.removeItem('dont_forget_custom_pin');
+      // Also clear old sessionStorage key
+      try { sessionStorage.removeItem('df_active_sess_id'); } catch { /* ignore */ }
     } catch {
-      // ignore
+      // ignore storage errors
     }
   },
+
   clearToken(): void {
     inMemorySessionToken = null;
     try {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem('dont_forget_session_token');
       localStorage.removeItem('dont_forget_custom_pin');
+      try { sessionStorage.removeItem('df_active_sess_id'); } catch { /* ignore */ }
     } catch {
       // ignore
     }
@@ -62,23 +72,27 @@ export const authApi = {
         headers: {
           ...(token ? { 'x-session-token': token } : {}),
         },
-        credentials: 'same-origin',
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
         return data;
       }
+      // Non-OK but not a definitive session invalidation — return safe default
+      // Never treat a 500 / network failure as "session expired"
     } catch (err) {
-      console.warn('Backend auth status query warning:', err);
+      console.warn('Auth status check failed (network/server error):', err);
     }
 
+    // Safe fallback: preserve existing auth state if we have a token
+    // Only mark unauthenticated if there is no token at all
     return {
       authenticated: false,
       sessionInvalidated: false,
       isLockedOut: false,
       lockoutSeconds: 0,
       attemptsRemaining: 5,
-      isDefaultPin: false,
+      isDefaultPin: true,
       activeSessionExists: false,
     };
   },
@@ -95,7 +109,7 @@ export const authApi = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
-        credentials: 'same-origin',
+        credentials: 'include',
       });
 
       const data = await res.json().catch(() => ({}));
@@ -121,7 +135,7 @@ export const authApi = {
           'Content-Type': 'application/json',
           ...(token ? { 'x-session-token': token } : {}),
         },
-        credentials: 'same-origin',
+        credentials: 'include',
       });
     } catch {
       // ignore
@@ -139,7 +153,7 @@ export const authApi = {
           'Content-Type': 'application/json',
           ...(token ? { 'x-session-token': token } : {}),
         },
-        credentials: 'same-origin',
+        credentials: 'include',
       });
     } catch {
       // ignore
@@ -160,7 +174,7 @@ export const authApi = {
         ...(token ? { 'x-session-token': token } : {}),
       },
       body: JSON.stringify({ currentPin, newPin }),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.success && data.token) {

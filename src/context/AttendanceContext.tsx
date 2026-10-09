@@ -107,25 +107,28 @@ export const AttendanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     refreshData();
 
+    // Poll every 90 seconds (not 12s) to avoid interference during mutations
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         refreshData();
       }
-    }, 12000);
+    }, 90 * 1000);
 
+    let visTimeout: NodeJS.Timeout | null = null;
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refreshData();
+        if (visTimeout) clearTimeout(visTimeout);
+        visTimeout = setTimeout(refreshData, 3000);
       }
     };
 
-    window.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', refreshData);
+    document.addEventListener('visibilitychange', handleVisibility);
+    // No window 'focus' listener — it fires on every input click!
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', refreshData);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (visTimeout) clearTimeout(visTimeout);
     };
   }, [refreshData]);
 

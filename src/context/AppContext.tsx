@@ -231,29 +231,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Cross-device continuous synchronization (polling every 10s + visibilitychange + focus)
+  // Cross-device synchronization: poll every 90 seconds + tab visibility change
+  // FIX: Removed window 'focus' listener — focus fires on every input click!
+  // FIX: Increased interval from 10s to 90s to avoid conflicts during mutations
   useEffect(() => {
     if (isInitialLoading) return;
 
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isMutatingRef.current) {
         refreshData();
       }
-    }, 10000);
+    }, 90 * 1000); // 90 seconds
 
+    let visTimeout: NodeJS.Timeout | null = null;
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refreshData();
+        // 3s delay after tab becomes visible — lets any mutation finish first
+        if (visTimeout) clearTimeout(visTimeout);
+        visTimeout = setTimeout(() => {
+          if (!isMutatingRef.current) refreshData();
+        }, 3000);
       }
     };
 
-    window.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', refreshData);
+    document.addEventListener('visibilitychange', handleVisibility);
+    // NOTE: No window 'focus' listener — it fires on every input element click!
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', refreshData);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (visTimeout) clearTimeout(visTimeout);
     };
   }, [isInitialLoading, refreshData]);
 

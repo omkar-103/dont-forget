@@ -385,6 +385,38 @@ body {
     outline-offset: 2px;
     border-radius: 6px;
   }
+
+  /* ============================================================
+     MOBILE — SAFE AREA & LAYOUT FIXES
+     ============================================================ */
+
+  /* Support iOS notch / home indicator */
+  html {
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Main content should not be hidden under the fixed mobile bottom nav */
+  /* The mobile nav is 56px (h-14) + safe-area-bottom */
+  @media (max-width: 767px) {
+    main.flex-1 {
+      padding-bottom: calc(64px + max(env(safe-area-inset-bottom), 4px));
+    }
+  }
+
+  /* Remove tap highlight on mobile */
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Input / select / textarea — prevent iOS zoom (font-size >=16px) */
+  @media (max-width: 767px) {
+    input, select, textarea {
+      font-size: 16px !important;
+      /* Scale down visually while keeping font-size at 16px to avoid zoom */
+      transform-origin: left top;
+    }
+  }
 }
 
 @layer utilities {

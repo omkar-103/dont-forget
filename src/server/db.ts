@@ -14,7 +14,8 @@ import type {
 
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
-let isAttemptingConnection = false;
+let connectionPromise: Promise<{ db: Db | null; isUsingAtlas: boolean; error: string | null }> | null = null;
+let indexesInitialized = false;
 let connectionError: string | null = null;
 
 export const DEFAULT_COLLEGE_ITEMS = [
@@ -135,6 +136,79 @@ const inMemoryStore = {
   appData: null as any,
 };
 
+async function initIndexesAndBootstrap(db: Db): Promise<void> {
+  try {
+    await Promise.allSettled([
+      db.collection('sessions').createIndex({ token: 1 }, { unique: true }),
+      db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection('sessions').createIndex({ userId: 1 }),
+      db.collection('authConfig').createIndex({ userId: 1 }, { unique: true }),
+      db.collection('tasks').createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection('tasks').createIndex({ userId: 1, date: 1 }),
+      db.collection('tasks').createIndex({ userId: 1, status: 1 }),
+      db.collection('assignments').createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection('assignments').createIndex({ userId: 1, deadline: 1 }),
+      db.collection('assignments').createIndex({ userId: 1, status: 1 }),
+      db.collection('events').createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection('events').createIndex({ userId: 1, startDate: 1 }),
+      db.collection('checklists').createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection('checklists').createIndex({ userId: 1, checklistId: 1, order: 1 }),
+      db.collection('dailyStates').createIndex({ userId: 1, date: 1 }, { unique: true }),
+      db.collection('userSettings').createIndex({ userId: 1 }, { unique: true }),
+      db.collection('subjects').createIndex({ userId: 1, active: 1 }),
+      db.collection('attendanceRecords').createIndex({ userId: 1, subjectId: 1, date: -1 }),
+      db.collection('attendanceRecords').createIndex({ userId: 1, subjectId: 1, type: 1, date: -1 }),
+      db.collection('attendanceSettings').createIndex({ userId: 1 }, { unique: true }),
+      db.collection('appData').createIndex({ userId: 1 }, { unique: true }),
+    ]);
+  } catch (idxErr) {
+    console.warn('Index initialization notice:', idxErr);
+  }
+
+  try {
+    const taskCount = await db.collection('tasks').countDocuments({ userId: 'default_user' });
+    if (taskCount === 0) {
+      const appDataDoc = await db.collection('appData').findOne({ userId: 'default_user' });
+      if (appDataDoc) {
+        if (Array.isArray(appDataDoc.tasks) && appDataDoc.tasks.length > 0) {
+          const taskDocs = appDataDoc.tasks.map((t: any) => ({ ...t, userId: 'default_user' }));
+          await db.collection('tasks').insertMany(taskDocs).catch(() => {});
+        }
+        if (Array.isArray(appDataDoc.assignments) && appDataDoc.assignments.length > 0) {
+          const asgDocs = appDataDoc.assignments.map((a: any) => ({ ...a, userId: 'default_user' }));
+          await db.collection('assignments').insertMany(asgDocs).catch(() => {});
+        }
+        if (Array.isArray(appDataDoc.events) && appDataDoc.events.length > 0) {
+          const evtDocs = appDataDoc.events.map((e: any) => ({ ...e, userId: 'default_user' }));
+          await db.collection('events').insertMany(evtDocs).catch(() => {});
+        }
+        if (Array.isArray(appDataDoc.checklists) && appDataDoc.checklists.length > 0) {
+          const checkDocs = appDataDoc.checklists.map((c: any) => ({ ...c, userId: 'default_user' }));
+          await db.collection('checklists').insertMany(checkDocs).catch(() => {});
+        }
+        if (appDataDoc.dailyStates && typeof appDataDoc.dailyStates === 'object') {
+          for (const [date, state] of Object.entries(appDataDoc.dailyStates)) {
+            await db.collection('dailyStates').updateOne(
+              { userId: 'default_user', date },
+              { $set: { userId: 'default_user', date, state } },
+              { upsert: true }
+            );
+          }
+        }
+        if (appDataDoc.settings) {
+          await db.collection('userSettings').updateOne(
+            { userId: 'default_user' },
+            { $set: { userId: 'default_user', ...appDataDoc.settings } },
+            { upsert: true }
+          );
+        }
+      }
+    }
+  } catch (bootstrapErr) {
+    console.warn('Bootstrap collection check notice:', bootstrapErr);
+  }
+}
+
 export async function getMongoDb(): Promise<{ db: Db | null; isUsingAtlas: boolean; error: string | null }> {
   const uri =
     process.env.MONGODB_URI ||
@@ -145,105 +219,43 @@ export async function getMongoDb(): Promise<{ db: Db | null; isUsingAtlas: boole
     return { db: cachedDb, isUsingAtlas: true, error: null };
   }
 
-  if (isAttemptingConnection) {
-    return { db: null, isUsingAtlas: false, error: 'Connection in progress...' };
+  if (connectionPromise) {
+    return connectionPromise;
   }
 
-  try {
-    isAttemptingConnection = true;
-    const client = new MongoClient(uri, {
-      connectTimeoutMS: 8000,
-      serverSelectionTimeoutMS: 8000,
-    });
-
-    await client.connect();
-    const db = client.db(dbName);
-
-    // Create recommended MongoDB indexes per specification
+  connectionPromise = (async () => {
     try {
-      await Promise.allSettled([
-        db.collection('sessions').createIndex({ token: 1 }, { unique: true }),
-        db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-        db.collection('sessions').createIndex({ userId: 1 }),
-        db.collection('authConfig').createIndex({ userId: 1 }, { unique: true }),
-        db.collection('tasks').createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection('tasks').createIndex({ userId: 1, date: 1 }),
-        db.collection('tasks').createIndex({ userId: 1, status: 1 }),
-        db.collection('assignments').createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection('assignments').createIndex({ userId: 1, deadline: 1 }),
-        db.collection('assignments').createIndex({ userId: 1, status: 1 }),
-        db.collection('events').createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection('events').createIndex({ userId: 1, startDate: 1 }),
-        db.collection('checklists').createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection('checklists').createIndex({ userId: 1, checklistId: 1, order: 1 }),
-        db.collection('dailyStates').createIndex({ userId: 1, date: 1 }, { unique: true }),
-        db.collection('userSettings').createIndex({ userId: 1 }, { unique: true }),
-        db.collection('subjects').createIndex({ userId: 1, active: 1 }),
-        db.collection('attendanceRecords').createIndex({ userId: 1, subjectId: 1, date: -1 }),
-        db.collection('attendanceRecords').createIndex({ userId: 1, subjectId: 1, type: 1, date: -1 }),
-        db.collection('attendanceSettings').createIndex({ userId: 1 }, { unique: true }),
-        db.collection('appData').createIndex({ userId: 1 }, { unique: true }),
-      ]);
-    } catch (idxErr) {
-      console.warn('Index initialization notice:', idxErr);
-    }
+      const client = new MongoClient(uri, {
+        connectTimeoutMS: 15000,
+        serverSelectionTimeoutMS: 15000,
+      });
 
-    // Bootstrap data integrity: check if appData doc exists and migrate to collections if collections are empty
-    try {
-      const taskCount = await db.collection('tasks').countDocuments({ userId: 'default_user' });
-      if (taskCount === 0) {
-        const appDataDoc = await db.collection('appData').findOne({ userId: 'default_user' });
-        if (appDataDoc) {
-          if (Array.isArray(appDataDoc.tasks) && appDataDoc.tasks.length > 0) {
-            const taskDocs = appDataDoc.tasks.map((t: any) => ({ ...t, userId: 'default_user' }));
-            await db.collection('tasks').insertMany(taskDocs).catch(() => {});
-          }
-          if (Array.isArray(appDataDoc.assignments) && appDataDoc.assignments.length > 0) {
-            const asgDocs = appDataDoc.assignments.map((a: any) => ({ ...a, userId: 'default_user' }));
-            await db.collection('assignments').insertMany(asgDocs).catch(() => {});
-          }
-          if (Array.isArray(appDataDoc.events) && appDataDoc.events.length > 0) {
-            const evtDocs = appDataDoc.events.map((e: any) => ({ ...e, userId: 'default_user' }));
-            await db.collection('events').insertMany(evtDocs).catch(() => {});
-          }
-          if (Array.isArray(appDataDoc.checklists) && appDataDoc.checklists.length > 0) {
-            const checkDocs = appDataDoc.checklists.map((c: any) => ({ ...c, userId: 'default_user' }));
-            await db.collection('checklists').insertMany(checkDocs).catch(() => {});
-          }
-          if (appDataDoc.dailyStates && typeof appDataDoc.dailyStates === 'object') {
-            for (const [date, state] of Object.entries(appDataDoc.dailyStates)) {
-              await db.collection('dailyStates').updateOne(
-                { userId: 'default_user', date },
-                { $set: { userId: 'default_user', date, state } },
-                { upsert: true }
-              );
-            }
-          }
-          if (appDataDoc.settings) {
-            await db.collection('userSettings').updateOne(
-              { userId: 'default_user' },
-              { $set: { userId: 'default_user', ...appDataDoc.settings } },
-              { upsert: true }
-            );
-          }
-        }
+      await client.connect();
+      const db = client.db(dbName);
+
+      cachedClient = client;
+      cachedDb = db;
+      connectionError = null;
+
+      if (!indexesInitialized) {
+        indexesInitialized = true;
+        initIndexesAndBootstrap(db).catch((idxErr) => {
+          console.warn('Index initialization background notice:', idxErr);
+        });
       }
-    } catch (bootstrapErr) {
-      console.warn('Bootstrap collection check notice:', bootstrapErr);
-    }
 
-    cachedClient = client;
-    cachedDb = db;
-    connectionError = null;
-    isAttemptingConnection = false;
-    return { db, isUsingAtlas: true, error: null };
-  } catch (err) {
-    isAttemptingConnection = false;
-    const msg = err instanceof Error ? err.message : String(err);
-    connectionError = msg;
-    console.error('MongoDB Atlas connection failed, maintaining failure isolation:', msg);
-    return { db: null, isUsingAtlas: false, error: msg };
-  }
+      return { db, isUsingAtlas: true, error: null };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      connectionError = msg;
+      console.error('MongoDB Atlas connection failed, maintaining failure isolation:', msg);
+      return { db: null, isUsingAtlas: false, error: msg };
+    } finally {
+      connectionPromise = null;
+    }
+  })();
+
+  return connectionPromise;
 }
 
 // Data Access Layer with automatic Atlas / fallback routing
@@ -296,24 +308,41 @@ export const dbService = {
     });
   },
 
-  async validateSession(token: string): Promise<{ valid: boolean; userId?: string }> {
+  async validateSession(token: string): Promise<{ valid: boolean; userId?: string; error?: string }> {
     if (!token) return { valid: false };
-    const { db } = await getMongoDb();
+    const { db, error } = await getMongoDb();
     const now = new Date();
 
     if (db) {
-      const doc = await db.collection('sessions').findOne({
-        token,
-        expiresAt: { $gt: now },
-      });
-      if (doc) {
-        // update last active asynchronously
-        db.collection('sessions')
-          .updateOne({ token }, { $set: { lastActiveAt: now } })
-          .catch(() => {});
-        return { valid: true, userId: doc.userId || 'default_user' };
+      try {
+        const doc = await db.collection('sessions').findOne({
+          token,
+          expiresAt: { $gt: now },
+        });
+        if (doc) {
+          // update last active asynchronously
+          db.collection('sessions')
+            .updateOne({ token }, { $set: { lastActiveAt: now } })
+            .catch(() => {});
+          return { valid: true, userId: doc.userId || 'default_user' };
+        }
+        return { valid: false };
+      } catch (findErr: any) {
+        console.error('Session DB validation error:', findErr);
+        const memSession = inMemoryStore.sessions.get(token);
+        if (memSession && memSession.expiresAt > now) {
+          return { valid: true, userId: memSession.userId };
+        }
+        return { valid: false, error: findErr?.message || 'Database connection error' };
       }
-      return { valid: false };
+    }
+
+    if (error) {
+      const memSession = inMemoryStore.sessions.get(token);
+      if (memSession && memSession.expiresAt > now) {
+        return { valid: true, userId: memSession.userId };
+      }
+      return { valid: false, error };
     }
 
     const memSession = inMemoryStore.sessions.get(token);
@@ -829,10 +858,22 @@ export const dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection('tasks').deleteMany({ userId });
-            if (data.tasks.length > 0) {
-              const taskDocs = data.tasks.map((t) => ({ ...t, userId, updatedAt: t.updatedAt || now }));
-              await db.collection('tasks').insertMany(taskDocs);
+            const currentIds = data.tasks.map((t) => t.id).filter(Boolean);
+            const taskDocs = data.tasks.map((t) => ({ ...t, userId, updatedAt: t.updatedAt || now }));
+            if (taskDocs.length > 0) {
+              const bulkOps = taskDocs.map((doc) => ({
+                replaceOne: {
+                  filter: { userId, id: doc.id },
+                  replacement: doc,
+                  upsert: true,
+                },
+              }));
+              await db.collection('tasks').bulkWrite(bulkOps);
+            }
+            if (currentIds.length > 0) {
+              await db.collection('tasks').deleteMany({ userId, id: { $nin: currentIds } });
+            } else {
+              await db.collection('tasks').deleteMany({ userId });
             }
           })()
         );
@@ -844,10 +885,22 @@ export const dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection('assignments').deleteMany({ userId });
-            if (data.assignments.length > 0) {
-              const asgDocs = data.assignments.map((a) => ({ ...a, userId, updatedAt: a.updatedAt || now }));
-              await db.collection('assignments').insertMany(asgDocs);
+            const currentIds = data.assignments.map((a) => a.id).filter(Boolean);
+            const asgDocs = data.assignments.map((a) => ({ ...a, userId, updatedAt: a.updatedAt || now }));
+            if (asgDocs.length > 0) {
+              const bulkOps = asgDocs.map((doc) => ({
+                replaceOne: {
+                  filter: { userId, id: doc.id },
+                  replacement: doc,
+                  upsert: true,
+                },
+              }));
+              await db.collection('assignments').bulkWrite(bulkOps);
+            }
+            if (currentIds.length > 0) {
+              await db.collection('assignments').deleteMany({ userId, id: { $nin: currentIds } });
+            } else {
+              await db.collection('assignments').deleteMany({ userId });
             }
           })()
         );
@@ -859,10 +912,22 @@ export const dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection('events').deleteMany({ userId });
-            if (data.events.length > 0) {
-              const evtDocs = data.events.map((e) => ({ ...e, userId, updatedAt: e.updatedAt || now }));
-              await db.collection('events').insertMany(evtDocs);
+            const currentIds = data.events.map((e) => e.id).filter(Boolean);
+            const evtDocs = data.events.map((e) => ({ ...e, userId, updatedAt: e.updatedAt || now }));
+            if (evtDocs.length > 0) {
+              const bulkOps = evtDocs.map((doc) => ({
+                replaceOne: {
+                  filter: { userId, id: doc.id },
+                  replacement: doc,
+                  upsert: true,
+                },
+              }));
+              await db.collection('events').bulkWrite(bulkOps);
+            }
+            if (currentIds.length > 0) {
+              await db.collection('events').deleteMany({ userId, id: { $nin: currentIds } });
+            } else {
+              await db.collection('events').deleteMany({ userId });
             }
           })()
         );
@@ -874,9 +939,19 @@ export const dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection('checklists').deleteMany({ userId });
+            const currentIds = data.checklists.map((c) => c.id).filter(Boolean);
             const checkDocs = data.checklists.map((c) => ({ ...c, userId }));
-            await db.collection('checklists').insertMany(checkDocs);
+            const bulkOps = checkDocs.map((doc) => ({
+              replaceOne: {
+                filter: { userId, id: doc.id },
+                replacement: doc,
+                upsert: true,
+              },
+            }));
+            await db.collection('checklists').bulkWrite(bulkOps);
+            if (currentIds.length > 0) {
+              await db.collection('checklists').deleteMany({ userId, id: { $nin: currentIds } });
+            }
           })()
         );
       }

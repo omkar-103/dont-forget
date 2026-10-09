@@ -117,13 +117,13 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Zone 3: Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Search Button */}
             <button
               type="button"
               onClick={() => setIsSearchOpen(true)}
               aria-label="Search"
-              className="min-h-[40px] min-w-[40px] p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-slate-900 dark:focus-visible:ring-white"
+              className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-slate-900 dark:focus-visible:ring-white"
             >
               <Search className="w-4 h-4" />
             </button>
@@ -148,7 +148,7 @@ export const Header: React.FC = () => {
                   ? 'Switch to light mode'
                   : 'Switch to dark mode'
               }
-              className="min-h-[40px] min-w-[40px] p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer relative"
+              className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer relative"
             >
               {isOrangePink ? (
                 <Sparkles className="w-4 h-4" style={{ color: '#FF8A3D' }} />
@@ -160,13 +160,13 @@ export const Header: React.FC = () => {
               {/* Indicator dot */}
               {theme === 'system' && !isOrangePink && (
                 <span
-                  className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500"
+                  className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500"
                   title="System theme active"
                 />
               )}
               {isOrangePink && (
                 <span
-                  className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+                  className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-1.5 h-1.5 rounded-full"
                   style={{ background: 'linear-gradient(135deg, #FF8A3D, #F43F7A)' }}
                   title="Orange Pink theme active"
                 />
@@ -177,7 +177,7 @@ export const Header: React.FC = () => {
             <button
               type="button"
               onClick={() => openQuickAdd()}
-              className="min-h-[40px] px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900"
+              className="min-h-[36px] sm:min-h-[40px] px-2.5 sm:px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span className="hidden sm:inline">Add</span>
@@ -188,7 +188,7 @@ export const Header: React.FC = () => {
               type="button"
               onClick={() => setIsSettingsOpen(true)}
               aria-label="Settings"
-              className="min-h-[40px] min-w-[40px] p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-slate-900 dark:focus-visible:ring-white"
+              className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-slate-900 dark:focus-visible:ring-white"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -199,7 +199,7 @@ export const Header: React.FC = () => {
               onClick={() => lock()}
               aria-label="Lock Session"
               title="Lock Session (Require password to reopen)"
-              className="min-h-[40px] min-w-[40px] p-2 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500"
+              className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500"
             >
               <Lock className="w-4 h-4" />
             </button>

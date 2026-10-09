@@ -6,7 +6,8 @@ import dotenv from "dotenv";
 import { MongoClient, ObjectId } from "mongodb";
 var cachedClient = null;
 var cachedDb = null;
-var isAttemptingConnection = false;
+var connectionPromise = null;
+var indexesInitialized = false;
 var connectionError = null;
 var DEFAULT_COLLEGE_ITEMS = [
   "iw wi College ID",
@@ -116,108 +117,118 @@ var inMemoryStore = {
   authConfig: null,
   appData: null
 };
+async function initIndexesAndBootstrap(db) {
+  try {
+    await Promise.allSettled([
+      db.collection("sessions").createIndex({ token: 1 }, { unique: true }),
+      db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection("sessions").createIndex({ userId: 1 }),
+      db.collection("authConfig").createIndex({ userId: 1 }, { unique: true }),
+      db.collection("tasks").createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection("tasks").createIndex({ userId: 1, date: 1 }),
+      db.collection("tasks").createIndex({ userId: 1, status: 1 }),
+      db.collection("assignments").createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection("assignments").createIndex({ userId: 1, deadline: 1 }),
+      db.collection("assignments").createIndex({ userId: 1, status: 1 }),
+      db.collection("events").createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection("events").createIndex({ userId: 1, startDate: 1 }),
+      db.collection("checklists").createIndex({ userId: 1, id: 1 }, { unique: true }),
+      db.collection("checklists").createIndex({ userId: 1, checklistId: 1, order: 1 }),
+      db.collection("dailyStates").createIndex({ userId: 1, date: 1 }, { unique: true }),
+      db.collection("userSettings").createIndex({ userId: 1 }, { unique: true }),
+      db.collection("subjects").createIndex({ userId: 1, active: 1 }),
+      db.collection("attendanceRecords").createIndex({ userId: 1, subjectId: 1, date: -1 }),
+      db.collection("attendanceRecords").createIndex({ userId: 1, subjectId: 1, type: 1, date: -1 }),
+      db.collection("attendanceSettings").createIndex({ userId: 1 }, { unique: true }),
+      db.collection("appData").createIndex({ userId: 1 }, { unique: true })
+    ]);
+  } catch (idxErr) {
+    console.warn("Index initialization notice:", idxErr);
+  }
+  try {
+    const taskCount = await db.collection("tasks").countDocuments({ userId: "default_user" });
+    if (taskCount === 0) {
+      const appDataDoc = await db.collection("appData").findOne({ userId: "default_user" });
+      if (appDataDoc) {
+        if (Array.isArray(appDataDoc.tasks) && appDataDoc.tasks.length > 0) {
+          const taskDocs = appDataDoc.tasks.map((t) => ({ ...t, userId: "default_user" }));
+          await db.collection("tasks").insertMany(taskDocs).catch(() => {
+          });
+        }
+        if (Array.isArray(appDataDoc.assignments) && appDataDoc.assignments.length > 0) {
+          const asgDocs = appDataDoc.assignments.map((a) => ({ ...a, userId: "default_user" }));
+          await db.collection("assignments").insertMany(asgDocs).catch(() => {
+          });
+        }
+        if (Array.isArray(appDataDoc.events) && appDataDoc.events.length > 0) {
+          const evtDocs = appDataDoc.events.map((e) => ({ ...e, userId: "default_user" }));
+          await db.collection("events").insertMany(evtDocs).catch(() => {
+          });
+        }
+        if (Array.isArray(appDataDoc.checklists) && appDataDoc.checklists.length > 0) {
+          const checkDocs = appDataDoc.checklists.map((c) => ({ ...c, userId: "default_user" }));
+          await db.collection("checklists").insertMany(checkDocs).catch(() => {
+          });
+        }
+        if (appDataDoc.dailyStates && typeof appDataDoc.dailyStates === "object") {
+          for (const [date, state] of Object.entries(appDataDoc.dailyStates)) {
+            await db.collection("dailyStates").updateOne(
+              { userId: "default_user", date },
+              { $set: { userId: "default_user", date, state } },
+              { upsert: true }
+            );
+          }
+        }
+        if (appDataDoc.settings) {
+          await db.collection("userSettings").updateOne(
+            { userId: "default_user" },
+            { $set: { userId: "default_user", ...appDataDoc.settings } },
+            { upsert: true }
+          );
+        }
+      }
+    }
+  } catch (bootstrapErr) {
+    console.warn("Bootstrap collection check notice:", bootstrapErr);
+  }
+}
 async function getMongoDb() {
   const uri = process.env.MONGODB_URI || "mongodb+srv://omkarparelkarwebsite:WJSuKGC97RC6LH4Z@cluster0.tbhl9le.mongodb.net/omkarparelkarwebsite?retryWrites=true&w=majority&appName=Cluster0";
   const dbName = process.env.MONGODB_DB_NAME || "omkarparelkarwebsite";
   if (cachedDb && cachedClient) {
     return { db: cachedDb, isUsingAtlas: true, error: null };
   }
-  if (isAttemptingConnection) {
-    return { db: null, isUsingAtlas: false, error: "Connection in progress..." };
+  if (connectionPromise) {
+    return connectionPromise;
   }
-  try {
-    isAttemptingConnection = true;
-    const client = new MongoClient(uri, {
-      connectTimeoutMS: 8e3,
-      serverSelectionTimeoutMS: 8e3
-    });
-    await client.connect();
-    const db = client.db(dbName);
+  connectionPromise = (async () => {
     try {
-      await Promise.allSettled([
-        db.collection("sessions").createIndex({ token: 1 }, { unique: true }),
-        db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-        db.collection("sessions").createIndex({ userId: 1 }),
-        db.collection("authConfig").createIndex({ userId: 1 }, { unique: true }),
-        db.collection("tasks").createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection("tasks").createIndex({ userId: 1, date: 1 }),
-        db.collection("tasks").createIndex({ userId: 1, status: 1 }),
-        db.collection("assignments").createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection("assignments").createIndex({ userId: 1, deadline: 1 }),
-        db.collection("assignments").createIndex({ userId: 1, status: 1 }),
-        db.collection("events").createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection("events").createIndex({ userId: 1, startDate: 1 }),
-        db.collection("checklists").createIndex({ userId: 1, id: 1 }, { unique: true }),
-        db.collection("checklists").createIndex({ userId: 1, checklistId: 1, order: 1 }),
-        db.collection("dailyStates").createIndex({ userId: 1, date: 1 }, { unique: true }),
-        db.collection("userSettings").createIndex({ userId: 1 }, { unique: true }),
-        db.collection("subjects").createIndex({ userId: 1, active: 1 }),
-        db.collection("attendanceRecords").createIndex({ userId: 1, subjectId: 1, date: -1 }),
-        db.collection("attendanceRecords").createIndex({ userId: 1, subjectId: 1, type: 1, date: -1 }),
-        db.collection("attendanceSettings").createIndex({ userId: 1 }, { unique: true }),
-        db.collection("appData").createIndex({ userId: 1 }, { unique: true })
-      ]);
-    } catch (idxErr) {
-      console.warn("Index initialization notice:", idxErr);
-    }
-    try {
-      const taskCount = await db.collection("tasks").countDocuments({ userId: "default_user" });
-      if (taskCount === 0) {
-        const appDataDoc = await db.collection("appData").findOne({ userId: "default_user" });
-        if (appDataDoc) {
-          if (Array.isArray(appDataDoc.tasks) && appDataDoc.tasks.length > 0) {
-            const taskDocs = appDataDoc.tasks.map((t) => ({ ...t, userId: "default_user" }));
-            await db.collection("tasks").insertMany(taskDocs).catch(() => {
-            });
-          }
-          if (Array.isArray(appDataDoc.assignments) && appDataDoc.assignments.length > 0) {
-            const asgDocs = appDataDoc.assignments.map((a) => ({ ...a, userId: "default_user" }));
-            await db.collection("assignments").insertMany(asgDocs).catch(() => {
-            });
-          }
-          if (Array.isArray(appDataDoc.events) && appDataDoc.events.length > 0) {
-            const evtDocs = appDataDoc.events.map((e) => ({ ...e, userId: "default_user" }));
-            await db.collection("events").insertMany(evtDocs).catch(() => {
-            });
-          }
-          if (Array.isArray(appDataDoc.checklists) && appDataDoc.checklists.length > 0) {
-            const checkDocs = appDataDoc.checklists.map((c) => ({ ...c, userId: "default_user" }));
-            await db.collection("checklists").insertMany(checkDocs).catch(() => {
-            });
-          }
-          if (appDataDoc.dailyStates && typeof appDataDoc.dailyStates === "object") {
-            for (const [date, state] of Object.entries(appDataDoc.dailyStates)) {
-              await db.collection("dailyStates").updateOne(
-                { userId: "default_user", date },
-                { $set: { userId: "default_user", date, state } },
-                { upsert: true }
-              );
-            }
-          }
-          if (appDataDoc.settings) {
-            await db.collection("userSettings").updateOne(
-              { userId: "default_user" },
-              { $set: { userId: "default_user", ...appDataDoc.settings } },
-              { upsert: true }
-            );
-          }
-        }
+      const client = new MongoClient(uri, {
+        connectTimeoutMS: 15e3,
+        serverSelectionTimeoutMS: 15e3
+      });
+      await client.connect();
+      const db = client.db(dbName);
+      cachedClient = client;
+      cachedDb = db;
+      connectionError = null;
+      if (!indexesInitialized) {
+        indexesInitialized = true;
+        initIndexesAndBootstrap(db).catch((idxErr) => {
+          console.warn("Index initialization background notice:", idxErr);
+        });
       }
-    } catch (bootstrapErr) {
-      console.warn("Bootstrap collection check notice:", bootstrapErr);
+      return { db, isUsingAtlas: true, error: null };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      connectionError = msg;
+      console.error("MongoDB Atlas connection failed, maintaining failure isolation:", msg);
+      return { db: null, isUsingAtlas: false, error: msg };
+    } finally {
+      connectionPromise = null;
     }
-    cachedClient = client;
-    cachedDb = db;
-    connectionError = null;
-    isAttemptingConnection = false;
-    return { db, isUsingAtlas: true, error: null };
-  } catch (err) {
-    isAttemptingConnection = false;
-    const msg = err instanceof Error ? err.message : String(err);
-    connectionError = msg;
-    console.error("MongoDB Atlas connection failed, maintaining failure isolation:", msg);
-    return { db: null, isUsingAtlas: false, error: msg };
-  }
+  })();
+  return connectionPromise;
 }
 var dbService = {
   async getStatus() {
@@ -261,19 +272,35 @@ var dbService = {
   },
   async validateSession(token) {
     if (!token) return { valid: false };
-    const { db } = await getMongoDb();
+    const { db, error } = await getMongoDb();
     const now = /* @__PURE__ */ new Date();
     if (db) {
-      const doc = await db.collection("sessions").findOne({
-        token,
-        expiresAt: { $gt: now }
-      });
-      if (doc) {
-        db.collection("sessions").updateOne({ token }, { $set: { lastActiveAt: now } }).catch(() => {
+      try {
+        const doc = await db.collection("sessions").findOne({
+          token,
+          expiresAt: { $gt: now }
         });
-        return { valid: true, userId: doc.userId || "default_user" };
+        if (doc) {
+          db.collection("sessions").updateOne({ token }, { $set: { lastActiveAt: now } }).catch(() => {
+          });
+          return { valid: true, userId: doc.userId || "default_user" };
+        }
+        return { valid: false };
+      } catch (findErr) {
+        console.error("Session DB validation error:", findErr);
+        const memSession2 = inMemoryStore.sessions.get(token);
+        if (memSession2 && memSession2.expiresAt > now) {
+          return { valid: true, userId: memSession2.userId };
+        }
+        return { valid: false, error: findErr?.message || "Database connection error" };
       }
-      return { valid: false };
+    }
+    if (error) {
+      const memSession2 = inMemoryStore.sessions.get(token);
+      if (memSession2 && memSession2.expiresAt > now) {
+        return { valid: true, userId: memSession2.userId };
+      }
+      return { valid: false, error };
     }
     const memSession = inMemoryStore.sessions.get(token);
     if (memSession && memSession.expiresAt > now) {
@@ -756,10 +783,22 @@ var dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection("tasks").deleteMany({ userId });
-            if (data.tasks.length > 0) {
-              const taskDocs = data.tasks.map((t) => ({ ...t, userId, updatedAt: t.updatedAt || now }));
-              await db.collection("tasks").insertMany(taskDocs);
+            const currentIds = data.tasks.map((t) => t.id).filter(Boolean);
+            const taskDocs = data.tasks.map((t) => ({ ...t, userId, updatedAt: t.updatedAt || now }));
+            if (taskDocs.length > 0) {
+              const bulkOps = taskDocs.map((doc) => ({
+                replaceOne: {
+                  filter: { userId, id: doc.id },
+                  replacement: doc,
+                  upsert: true
+                }
+              }));
+              await db.collection("tasks").bulkWrite(bulkOps);
+            }
+            if (currentIds.length > 0) {
+              await db.collection("tasks").deleteMany({ userId, id: { $nin: currentIds } });
+            } else {
+              await db.collection("tasks").deleteMany({ userId });
             }
           })()
         );
@@ -770,10 +809,22 @@ var dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection("assignments").deleteMany({ userId });
-            if (data.assignments.length > 0) {
-              const asgDocs = data.assignments.map((a) => ({ ...a, userId, updatedAt: a.updatedAt || now }));
-              await db.collection("assignments").insertMany(asgDocs);
+            const currentIds = data.assignments.map((a) => a.id).filter(Boolean);
+            const asgDocs = data.assignments.map((a) => ({ ...a, userId, updatedAt: a.updatedAt || now }));
+            if (asgDocs.length > 0) {
+              const bulkOps = asgDocs.map((doc) => ({
+                replaceOne: {
+                  filter: { userId, id: doc.id },
+                  replacement: doc,
+                  upsert: true
+                }
+              }));
+              await db.collection("assignments").bulkWrite(bulkOps);
+            }
+            if (currentIds.length > 0) {
+              await db.collection("assignments").deleteMany({ userId, id: { $nin: currentIds } });
+            } else {
+              await db.collection("assignments").deleteMany({ userId });
             }
           })()
         );
@@ -784,10 +835,22 @@ var dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection("events").deleteMany({ userId });
-            if (data.events.length > 0) {
-              const evtDocs = data.events.map((e) => ({ ...e, userId, updatedAt: e.updatedAt || now }));
-              await db.collection("events").insertMany(evtDocs);
+            const currentIds = data.events.map((e) => e.id).filter(Boolean);
+            const evtDocs = data.events.map((e) => ({ ...e, userId, updatedAt: e.updatedAt || now }));
+            if (evtDocs.length > 0) {
+              const bulkOps = evtDocs.map((doc) => ({
+                replaceOne: {
+                  filter: { userId, id: doc.id },
+                  replacement: doc,
+                  upsert: true
+                }
+              }));
+              await db.collection("events").bulkWrite(bulkOps);
+            }
+            if (currentIds.length > 0) {
+              await db.collection("events").deleteMany({ userId, id: { $nin: currentIds } });
+            } else {
+              await db.collection("events").deleteMany({ userId });
             }
           })()
         );
@@ -798,9 +861,19 @@ var dbService = {
       if (db) {
         operations.push(
           (async () => {
-            await db.collection("checklists").deleteMany({ userId });
+            const currentIds = data.checklists.map((c) => c.id).filter(Boolean);
             const checkDocs = data.checklists.map((c) => ({ ...c, userId }));
-            await db.collection("checklists").insertMany(checkDocs);
+            const bulkOps = checkDocs.map((doc) => ({
+              replaceOne: {
+                filter: { userId, id: doc.id },
+                replacement: doc,
+                upsert: true
+              }
+            }));
+            await db.collection("checklists").bulkWrite(bulkOps);
+            if (currentIds.length > 0) {
+              await db.collection("checklists").deleteMany({ userId, id: { $nin: currentIds } });
+            }
           })()
         );
       }
@@ -1248,6 +1321,8 @@ var DEFAULT_PIN = process.env.APP_SECURITY_PIN || "12345678";
 function hashPin(pin, salt) {
   return crypto.pbkdf2Sync(pin, salt, 1e5, 64, "sha256").toString("hex");
 }
+var DEFAULT_SALT = "8e2d722c371bde479027d72ed9e7d3e5";
+var DEFAULT_HASH = hashPin(DEFAULT_PIN, DEFAULT_SALT);
 var ServerAuthManager = class {
   constructor() {
     this.failedAttempts = 0;
@@ -1267,11 +1342,9 @@ var ServerAuthManager = class {
         };
         return;
       }
-      const salt = crypto.randomBytes(16).toString("hex");
-      const hash = hashPin(DEFAULT_PIN, salt);
       const config = {
-        hash,
-        salt,
+        hash: DEFAULT_HASH,
+        salt: DEFAULT_SALT,
         isCustomized: false,
         updatedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
@@ -1280,11 +1353,9 @@ var ServerAuthManager = class {
     } catch (err) {
       console.warn("Auth manager initialization notice (using memory fallback):", err);
       if (!this.memoryConfig) {
-        const salt = crypto.randomBytes(16).toString("hex");
-        const hash = hashPin(DEFAULT_PIN, salt);
         this.memoryConfig = {
-          hash,
-          salt,
+          hash: DEFAULT_HASH,
+          salt: DEFAULT_SALT,
           isCustomized: false,
           updatedAt: (/* @__PURE__ */ new Date()).toISOString()
         };
@@ -1306,11 +1377,9 @@ var ServerAuthManager = class {
     } catch {
     }
     if (this.memoryConfig) return this.memoryConfig;
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = hashPin(DEFAULT_PIN, salt);
     this.memoryConfig = {
-      hash,
-      salt,
+      hash: DEFAULT_HASH,
+      salt: DEFAULT_SALT,
       isCustomized: false,
       updatedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
@@ -1399,9 +1468,12 @@ var ServerAuthManager = class {
     };
   }
   async validateSession(clientToken) {
-    if (!clientToken) return false;
+    if (!clientToken) return { valid: false };
     const result = await dbService.validateSession(clientToken);
-    return result.valid;
+    if (result.error) {
+      return { valid: false, isError: true };
+    }
+    return { valid: result.valid };
   }
   async lockSession(clientToken) {
     if (!clientToken) return false;
@@ -1705,8 +1777,8 @@ apiRouter.post("/auth/lock", async (req, res) => {
 apiRouter.post("/auth/revoke-all", async (req, res) => {
   try {
     const token = extractSessionToken(req);
-    const isValid = await serverAuth.validateSession(token);
-    if (!isValid) {
+    const validation = await serverAuth.validateSession(token);
+    if (!validation.valid) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     await serverAuth.revokeAllSessions("default_user");
@@ -1750,8 +1822,14 @@ var requireValidSession = async (req, res, next) => {
       sessionInvalidated: true
     });
   }
-  const isValid = await serverAuth.validateSession(token);
-  if (!isValid) {
+  const validation = await serverAuth.validateSession(token);
+  if (validation.isError) {
+    return res.status(503).json({
+      error: "Security service temporarily unavailable. Reconnecting...",
+      retryable: true
+    });
+  }
+  if (!validation.valid) {
     clearSessionCookie(res);
     return res.status(401).json({
       error: "Session Expired or Revoked: Please enter the 8-digit password to unlock.",
@@ -2128,13 +2206,43 @@ var app_default = app;
 // src/server/api-handler.ts
 async function handler(req, res) {
   try {
-    const forwardedUri = req.headers["x-forwarded-uri"] || req.headers["x-matched-path"] || req.headers["x-invoke-path"];
-    if (forwardedUri && typeof forwardedUri === "string" && (req.url === "/" || req.url === "/api" || !req.url.startsWith("/api/"))) {
-      req.url = forwardedUri;
+    let targetPath = "";
+    if (req.query) {
+      if (typeof req.query.route === "string" && req.query.route) {
+        targetPath = req.query.route;
+      } else if (typeof req.query.path === "string" && req.query.path) {
+        targetPath = req.query.path;
+      } else if (typeof req.query[0] === "string" && req.query[0]) {
+        targetPath = req.query[0];
+      } else if (typeof req.query["0"] === "string" && req.query["0"]) {
+        targetPath = req.query["0"];
+      }
+    }
+    if (!targetPath && typeof req.url === "string" && req.url.includes("?")) {
+      try {
+        const parsed = new URL(req.url, "http://localhost");
+        const qRoute = parsed.searchParams.get("route") || parsed.searchParams.get("path") || parsed.searchParams.get("0");
+        if (qRoute) {
+          targetPath = qRoute;
+        }
+      } catch {
+      }
+    }
+    const forwardedUri = req.headers["x-forwarded-uri"] || req.headers["x-invoke-path"] || req.headers["x-matched-path"];
+    if (!targetPath && forwardedUri && typeof forwardedUri === "string" && forwardedUri !== "/api" && forwardedUri !== "/" && forwardedUri.startsWith("/api/")) {
+      targetPath = forwardedUri;
+    }
+    if (targetPath) {
+      const clean = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
+      req.url = clean.startsWith("/api") ? clean : `/api${clean}`;
     }
     return app_default(req, res);
   } catch (err) {
-    return res.status(500).json({ error: "Serverless invocation error", message: err?.message || String(err) });
+    console.error("Serverless invocation error:", err);
+    return res.status(500).json({
+      error: "Serverless invocation error",
+      message: err?.message || String(err)
+    });
   }
 }
 export {

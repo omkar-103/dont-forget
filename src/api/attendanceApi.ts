@@ -18,7 +18,9 @@ function getHeaders(extra: Record<string, string> = {}): Record<string, string> 
 
 export const attendanceApi = {
   async getHealth(): Promise<{ isUsingAtlas: boolean; error: string | null; database: string }> {
-    const res = await fetch('/api/attendance/health');
+    const res = await fetch('/api/attendance/health', {
+      credentials: 'include',
+    });
     if (!res.ok) throw new Error('Failed to query database health');
     return res.json();
   },
@@ -26,6 +28,7 @@ export const attendanceApi = {
   async getSummary(): Promise<GlobalAttendanceSummary> {
     const res = await fetch('/api/attendance/summary', {
       headers: getHeaders(),
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to fetch attendance summary');
     return res.json();
@@ -34,6 +37,7 @@ export const attendanceApi = {
   async getSubjects(): Promise<Subject[]> {
     const res = await fetch('/api/subjects', {
       headers: getHeaders(),
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to fetch subjects');
     return res.json();
@@ -44,6 +48,7 @@ export const attendanceApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -57,6 +62,7 @@ export const attendanceApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ subjects }),
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -70,6 +76,7 @@ export const attendanceApi = {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -82,6 +89,7 @@ export const attendanceApi = {
     const res = await fetch(`/api/subjects/${id}${force ? '?force=true' : ''}`, {
       method: 'DELETE',
       headers: getHeaders(),
+      credentials: 'include',
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -98,6 +106,7 @@ export const attendanceApi = {
 
     const res = await fetch(`/api/attendance?${params.toString()}`, {
       headers: getHeaders(),
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to fetch attendance history');
     return res.json();
@@ -115,6 +124,7 @@ export const attendanceApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data),
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -128,6 +138,7 @@ export const attendanceApi = {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
+      credentials: 'include',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -140,6 +151,7 @@ export const attendanceApi = {
     const res = await fetch(`/api/attendance/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to delete attendance record');
     return true;
@@ -148,6 +160,7 @@ export const attendanceApi = {
   async getSettings(): Promise<AttendanceSettings> {
     const res = await fetch('/api/attendance/settings', {
       headers: getHeaders(),
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to fetch settings');
     return res.json();
@@ -158,6 +171,7 @@ export const attendanceApi = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(settings),
+      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to save settings');
     return res.json();
